@@ -248,17 +248,14 @@ func (agent *Agent) move(state *State) {
 		if location_duration >= sample_duration {
 			p_goes_to_office := 0.55
 
-			// if state.is_lockdown {
-			// 	// social spaces are shutdown so only option is office
-			// 	p_goes_to_office = 1
-			// }
-
 			goes_to_office := sampleBernoulli(p_goes_to_office)
 
 			if goes_to_office == 1 {
 				next_location = agent.office
 			} else {
-				// select a social space at uniform random. in reality this wouldn't be uniform random
+				// select a social space at uniform random from the agent's list of social spaces.
+				// in reality this wouldn't be uniform random, rather mostly a function of proximity,
+				// which can be implemented once geospatial attributes are added to spaces
 				next_location = agent.social_spaces[sampleUniform(0, int64(len(agent.social_spaces)-1))]
 			}
 		}
