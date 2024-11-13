@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"math"
+	"net"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"gonum.org/v1/gonum/stat/distuv"
 )
 
@@ -19,6 +22,7 @@ const Office = "office"
 const SocialSpace = "social_space"
 
 type State struct {
+	id              uuid.UUID
 	pathogen        PathogenProfile
 	start_time      time.Time
 	epoch           int64
@@ -39,7 +43,7 @@ type PathogenProfile struct {
 }
 
 type Agent struct {
-	id                           int64
+	id                           uuid.UUID
 	household                    *Space
 	office                       *Space
 	social_spaces                []*Space
@@ -47,13 +51,19 @@ type Agent struct {
 	location_change_epoch        int64
 	infection_state              string
 	infection_state_change_epoch int64
+	infectious_contacts          []InfectiousContact
 	pulmonary_ventilation_rate   float64
 	is_compliant                 bool
 }
 
+type InfectiousContact struct {
+	id               uuid.UUID
+	infectious_epoch int64
+}
+
 type Space struct {
 	mu                     *sync.RWMutex
-	id                     int64
+	id                     uuid.UUID
 	type_                  string
 	occupants              []*Agent
 	capacity               int64
@@ -65,10 +75,10 @@ type Space struct {
 func main() {
 	// a covid-like pathogen
 	pathogen := PathogenProfile{
-		incubation_period:    [2]float64{7 * 24 * 60 * 60 * 1000, 8 * 60 * 60 * 1000},
+		incubation_period:    [2]float64{3 * 24 * 60 * 60 * 1000, 8 * 60 * 60 * 1000},
 		recovery_period:      [2]float64{7 * 24 * 60 * 60 * 1000, 8 * 60 * 60 * 1000},
-		immunity_period:      [2]float64{330 * 24 * 60 * 60 * 1000, 180 * 24 * 60 * 60 * 1000},
-		quanta_emission_rate: [2]float64{50, 20},
+		immunity_period:      [2]float64{330 * 24 * 60 * 60 * 1000, 90 * 24 * 60 * 60 * 1000},
+		quanta_emission_rate: [2]float64{100, 20},
 	}
 
 	// create a game with 150k people
@@ -78,67 +88,55 @@ func main() {
 }
 
 func (state *State) start() {
-	state.infect_random_agent()
-
-	mask_mandate_epoch := int64((30 * 24 * 60) / 15)
-	lockdown_epoch := int64((60 * 24 * 60) / 15)
-
-	for {
-		state.simulate_epoch()
-		state.report_metrics(24 * 60 * 60 * 1000)
-
-		if state.epoch == mask_mandate_epoch {
-			println("Imposing mask mandate")
-			state.impose_mask_mandate()
-		}
-
-		if state.epoch == lockdown_epoch {
-			println("Imposing lockdown")
-			state.impose_lockdown()
-		}
-	}
-}
-
-func (state *State) report_metrics(interval int64) {
-	if (state.epoch*state.time_step)%interval != 0 {
+	ln, err := net.Listen("tcp", ":9876")
+	if err != nil {
+		fmt.Println("Error starting server:", err)
 		return
 	}
+	defer ln.Close()
 
-	// period := (state.epoch * state.time_step) / interval
-	total_infections := 0
-	total_infectious := 0
+	fmt.Println("Waiting for player to connect on port 9876")
 
-	for _, agent := range state.agents {
-		if agent.infection_state == Infected || agent.infection_state == Infectious {
-			total_infections += 1
+	conn, err := ln.Accept()
+	if err != nil {
+		fmt.Println("Error accepting connection:", err)
+		return
+	}
+	defer conn.Close()
+
+	commands := make(chan string)
+
+	fmt.Println("Player connected")
+	fmt.Println("Starting game...")
+
+	metrics_engine := newMetricsEngine(state, 24*60*60*1000)
+	state.infect_random_agent()
+
+	go func() {
+		for {
+			command, _ := bufio.NewReader(conn).ReadString('\n')
+			commands <- command
 		}
+	}()
 
-		if agent.infection_state == Infectious {
-			total_infectious += 1
+	for {
+		select {
+		case command := <-commands:
+			if command == "mask mandate\n" {
+				state.toggle_mask_mandate()
+			}
+
+			if command == "lockdown\n" {
+				state.toggle_lockdown()
+			}
+		default:
+			state.simulate_epoch()
+			metrics_engine.report_metrics()
 		}
 	}
-
-	fmt.Print("\033[H\033[2J")
-
-	fmt.Printf("Epidemic state on %s\n", state.time().Format("02-01-2006"))
-	fmt.Printf("	Total infected:			%d\n", total_infections)
-	fmt.Printf("	Total infectous:		%d\n", total_infectious)
-
-	interventions := "none"
-	if state.is_mask_mandate && state.is_lockdown {
-		interventions = "mask mandate, lockdown"
-	} else if state.is_mask_mandate {
-		interventions = "mask mandate"
-	} else if state.is_lockdown {
-		interventions = "lockdown"
-	}
-
-	fmt.Printf("	Interventions in effect:	%s\n", interventions)
 }
 
 func (state *State) simulate_epoch() {
-	state.epoch = state.epoch + 1
-
 	for _, agent := range state.agents {
 		agent.update(state)
 		agent.move(state)
@@ -155,6 +153,8 @@ func (state *State) simulate_epoch() {
 	for _, social_space := range state.social_spaces {
 		social_space.update(state)
 	}
+
+	state.epoch = state.epoch + 1
 }
 
 func (state *State) infect_random_agent() {
@@ -162,12 +162,12 @@ func (state *State) infect_random_agent() {
 	state.agents[agent_idx].infection_state = Infected
 }
 
-func (state *State) impose_mask_mandate() {
-	state.is_mask_mandate = true
+func (state *State) toggle_mask_mandate() {
+	state.is_mask_mandate = !state.is_mask_mandate
 }
 
-func (state *State) impose_lockdown() {
-	state.is_lockdown = true
+func (state *State) toggle_lockdown() {
+	state.is_lockdown = !state.is_lockdown
 }
 
 func (state *State) time() time.Time {
@@ -182,7 +182,7 @@ func (space *Space) update(state *State) {
 		if occupant.infection_state == Infectious {
 			filtration_efficiency := 0.0
 			if state.is_mask_mandate && occupant.is_compliant {
-				filtration_efficiency = sampleNormal(0.85, 0.20)
+				filtration_efficiency = math.Max(sampleNormal(0.95, 0.15), 1)
 			}
 
 			quanta_emission_rate := (1 - filtration_efficiency) * sampleNormal(state.pathogen.quanta_emission_rate[0], state.pathogen.quanta_emission_rate[1]) / 3600
@@ -221,6 +221,17 @@ func (space *Space) state() (float64, float64, float64) {
 	return space.volume, space.air_change_rate, space.total_infectious_doses
 }
 
+func (space *Space) infectiousContacts() []InfectiousContact {
+	snapshot := make([]InfectiousContact, 0)
+	for _, occupant := range space.occupants {
+		if occupant.infection_state == Infectious {
+			snapshot = append(snapshot, InfectiousContact{id: occupant.id, infectious_epoch: occupant.infection_state_change_epoch})
+		}
+	}
+
+	return snapshot
+}
+
 func (agent *Agent) move(state *State) {
 	location_duration := float64((state.epoch - agent.location_change_epoch) * state.time_step)
 
@@ -237,10 +248,10 @@ func (agent *Agent) move(state *State) {
 		if location_duration >= sample_duration {
 			p_goes_to_office := 0.55
 
-			if state.is_lockdown {
-				// social spaces are shutdown so only option is office
-				p_goes_to_office = 1
-			}
+			// if state.is_lockdown {
+			// 	// social spaces are shutdown so only option is office
+			// 	p_goes_to_office = 1
+			// }
 
 			goes_to_office := sampleBernoulli(p_goes_to_office)
 
@@ -290,6 +301,8 @@ func (agent *Agent) update(state *State) {
 		if is_infected == 1 {
 			agent.infection_state = Infected
 			agent.infection_state_change_epoch = state.epoch
+			agent.infectious_contacts = agent.location.infectiousContacts()
+
 		}
 	case Infected:
 		incubation_period := sampleNormal(state.pathogen.incubation_period[0], state.pathogen.incubation_period[1])
@@ -323,7 +336,7 @@ func (agent *Agent) pInfected(state *State) float64 {
 
 	filtration_efficiency := 0.0
 	if state.is_mask_mandate && agent.is_compliant {
-		filtration_efficiency = sampleNormal(0.85, 0.20)
+		filtration_efficiency = math.Max(sampleNormal(0.95, 0.15), 1)
 	}
 
 	return 1 - 1/math.Exp(((1-filtration_efficiency)*total_infectious_doses*agent.pulmonary_ventilation_rate/3600*float64(state.time_step)/1000)/ventilationRate)
@@ -336,6 +349,7 @@ func createState(agent_count int64, pathogen_profile PathogenProfile) State {
 	agents := createAgents(agent_count, households, offices, social_spaces)
 
 	return State{
+		id:            uuid.New(),
 		pathogen:      pathogen_profile,
 		start_time:    time.Now(),
 		epoch:         0,
@@ -350,19 +364,16 @@ func createState(agent_count int64, pathogen_profile PathogenProfile) State {
 func createHouseholds(total_capacity int64) []*Space {
 	households := make([]*Space, 0)
 
-	var id int64 = 0
-
 	for remaining_capacity := total_capacity; remaining_capacity > 0; {
-		capacity := int64(math.Floor(sampleNormal(4, 1)))
+		capacity := int64(math.Max(math.Floor(sampleNormal(4, 1)), 1))
 
 		if capacity > remaining_capacity {
 			capacity = remaining_capacity
 		}
 
-		household := newHousehold(id, capacity)
+		household := newHousehold(capacity)
 		households = append(households, &household)
 
-		id += 1
 		remaining_capacity -= capacity
 	}
 
@@ -372,19 +383,16 @@ func createHouseholds(total_capacity int64) []*Space {
 func createOffices(total_capacity int64) []*Space {
 	offices := make([]*Space, 0)
 
-	var id int64 = 0
-
 	for remaining_capacity := total_capacity; remaining_capacity > 0; {
-		capacity := int64(math.Floor(sampleNormal(10, 2)))
+		capacity := int64(math.Max(math.Floor(sampleNormal(10, 2)), 1))
 
 		if capacity > remaining_capacity {
 			capacity = remaining_capacity
 		}
 
-		office := newOffice(id, capacity)
+		office := newOffice(capacity)
 		offices = append(offices, &office)
 
-		id += 1
 		remaining_capacity -= capacity
 	}
 
@@ -394,19 +402,16 @@ func createOffices(total_capacity int64) []*Space {
 func createSocialSpaces(total_capacity int64) []*Space {
 	social_spaces := make([]*Space, 0)
 
-	var id int64 = 0
-
 	for remaining_capacity := total_capacity; remaining_capacity > 0; {
-		capacity := int64(math.Floor(sampleNormal(10, 2)))
+		capacity := int64(math.Max(math.Floor(sampleNormal(10, 2)), 1))
 
 		if capacity > remaining_capacity {
 			capacity = remaining_capacity
 		}
 
-		social_space := newSocialSpace(id, capacity)
+		social_space := newSocialSpace(capacity)
 		social_spaces = append(social_spaces, &social_space)
 
-		id += 1
 		remaining_capacity -= capacity
 	}
 
@@ -417,7 +422,7 @@ func createAgents(count int64, households, offices []*Space, social_spaces []*Sp
 	agents := make([]*Agent, count)
 
 	for i := 0; i < int(count); i++ {
-		agent := newAgent(int64(i), nil, nil)
+		agent := newAgent(nil, nil)
 
 		num_social_spaces := int(math.Max(1, math.Floor(sampleNormal(5, 4))))
 		for i := 0; i < num_social_spaces; i++ {
@@ -427,49 +432,40 @@ func createAgents(count int64, households, offices []*Space, social_spaces []*Sp
 		agents[i] = &agent
 	}
 
-	allocated := 0
-outera:
-	for _, household := range households {
-		for i := 0; i < int(household.capacity); i++ {
-			household.occupants = append(household.occupants, agents[allocated])
+	// allocate agents to households
+	householdIdx, householdAllocatedCapacity := 0, 0
+	for _, agent := range agents {
+		household := households[householdIdx]
+		agent.household = household
+		agent.location = household
 
-			agents[allocated].household = household
-			agents[allocated].location = household
-			allocated += 1
-
-			if allocated > len(agents)-1 {
-				break outera
-			}
+		householdAllocatedCapacity += 1
+		if householdAllocatedCapacity == int(household.capacity) {
+			householdIdx += 1
+			householdAllocatedCapacity = 0
 		}
 	}
 
-	if allocated != int(count) {
-		panic("not enough households!")
-	}
+	// allocate agents to offices
+	officeIdx, officeAllocatedCapacity := 0, 0
+	for _, agent := range agents {
+		office := offices[officeIdx]
+		agent.office = office
 
-	allocated = 0
-outerb:
-	for _, office := range offices {
-		for i := 0; i < int(office.capacity); i++ {
-			agents[allocated].office = office
-			allocated += 1
-			if allocated > len(agents)-1 {
-				break outerb
-			}
+		officeAllocatedCapacity += 1
+		if officeAllocatedCapacity == int(office.capacity) {
+			officeIdx += 1
+			officeAllocatedCapacity = 0
 		}
-	}
-
-	if allocated != int(count) {
-		panic("not enough offices!")
 	}
 
 	return agents
 }
 
-func newHousehold(id, capacity int64) Space {
+func newHousehold(capacity int64) Space {
 	return Space{
 		mu:                     new(sync.RWMutex),
-		id:                     id,
+		id:                     uuid.New(),
 		type_:                  Household,
 		occupants:              make([]*Agent, 0),
 		capacity:               capacity,
@@ -479,10 +475,10 @@ func newHousehold(id, capacity int64) Space {
 	}
 }
 
-func newOffice(id, capacity int64) Space {
+func newOffice(capacity int64) Space {
 	return Space{
 		mu:                     new(sync.RWMutex),
-		id:                     id,
+		id:                     uuid.New(),
 		type_:                  Office,
 		occupants:              make([]*Agent, 0),
 		capacity:               capacity,
@@ -492,10 +488,10 @@ func newOffice(id, capacity int64) Space {
 	}
 }
 
-func newSocialSpace(id, capacity int64) Space {
+func newSocialSpace(capacity int64) Space {
 	return Space{
 		mu:                     new(sync.RWMutex),
-		id:                     id,
+		id:                     uuid.New(),
 		type_:                  SocialSpace,
 		occupants:              make([]*Agent, 0),
 		capacity:               capacity,
@@ -505,14 +501,14 @@ func newSocialSpace(id, capacity int64) Space {
 	}
 }
 
-func newAgent(id int64, household, office *Space) Agent {
+func newAgent(household, office *Space) Agent {
 	is_compliant := false
-	if sampleBernoulli(0.75) == 1 {
+	if sampleBernoulli(0.95) == 1 {
 		is_compliant = true
 	}
 
 	return Agent{
-		id:                           id,
+		id:                           uuid.New(),
 		household:                    household,
 		office:                       office,
 		social_spaces:                make([]*Space, 0),
@@ -520,6 +516,7 @@ func newAgent(id int64, household, office *Space) Agent {
 		location_change_epoch:        0,
 		infection_state:              Susceptible,
 		infection_state_change_epoch: 0,
+		infectious_contacts:          make([]InfectiousContact, 0),
 		pulmonary_ventilation_rate:   sampleNormal(0.36, 0.01),
 		is_compliant:                 is_compliant,
 	}
