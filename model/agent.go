@@ -54,11 +54,11 @@ func newAgent() Agent {
 }
 
 func (agent *Agent) update(sim *Simulation) {
-	agent.update_state(sim)
+	agent.updateState(sim)
 	agent.move(sim)
 }
 
-func (agent *Agent) update_state(sim *Simulation) {
+func (agent *Agent) updateState(sim *Simulation) {
 	state_duration := float64((sim.epoch - agent.state_change_epoch) * sim.time_step)
 
 	switch agent.state {
@@ -68,27 +68,27 @@ func (agent *Agent) update_state(sim *Simulation) {
 		if is_infected == 1 {
 			agent.state = Infected
 			agent.state_change_epoch = sim.epoch
-			agent.infection_profile = sim.pathogen.generate_infection_profile()
-			agent.dispatch_state_update_event(sim)
+			agent.infection_profile = sim.pathogen.generateInfectionProfile()
+			agent.dispatchStateUpdateEvent(sim)
 		}
 	case Infected:
 		if state_duration >= agent.infection_profile.incubation_period {
 			agent.state = Infectious
 			agent.state_change_epoch = sim.epoch
-			agent.dispatch_state_update_event(sim)
+			agent.dispatchStateUpdateEvent(sim)
 		}
 	case Infectious:
 		if state_duration >= agent.infection_profile.recovery_period {
 			agent.state = Immune
 			agent.state_change_epoch = sim.epoch
-			agent.dispatch_state_update_event(sim)
+			agent.dispatchStateUpdateEvent(sim)
 		}
 	case Immune:
 		if state_duration >= agent.infection_profile.immunity_period {
 			agent.state = Susceptible
 			agent.state_change_epoch = sim.epoch
 			agent.infection_profile = nil
-			agent.dispatch_state_update_event(sim)
+			agent.dispatchStateUpdateEvent(sim)
 		}
 	default:
 		panic("this shouldn't be possible")
@@ -142,18 +142,18 @@ func (agent *Agent) move(sim *Simulation) {
 		agent.location = next_location
 		agent.location_change_epoch = sim.epoch
 		agent.next_move_epoch = sim.epoch + int64(math.Ceil(next_location_duration/float64(sim.time_step)))
-		agent.dispatch_location_update_event(sim)
+		agent.dispatchLocationUpdateEvent(sim)
 	}
 }
 
 func (agent *Agent) infect(sim *Simulation) {
 	agent.state = Infected
 	agent.state_change_epoch = sim.epoch
-	agent.infection_profile = sim.pathogen.generate_infection_profile()
-	agent.dispatch_state_update_event(sim)
+	agent.infection_profile = sim.pathogen.generateInfectionProfile()
+	agent.dispatchStateUpdateEvent(sim)
 }
 
-func (agent *Agent) dispatch_state_update_event(sim *Simulation) {
+func (agent *Agent) dispatchStateUpdateEvent(sim *Simulation) {
 	event := logger.Event{
 		Type: AgentStateUpdate,
 		Payload: AgentStateUpdatePayload{
@@ -166,7 +166,7 @@ func (agent *Agent) dispatch_state_update_event(sim *Simulation) {
 	sim.logger.Log(event)
 }
 
-func (agent *Agent) dispatch_location_update_event(sim *Simulation) {
+func (agent *Agent) dispatchLocationUpdateEvent(sim *Simulation) {
 	event := logger.Event{
 		Type: AgentLocationUpdate,
 		Payload: AgentLocationUpdatePayload{

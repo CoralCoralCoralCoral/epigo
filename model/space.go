@@ -91,7 +91,7 @@ func (space *Space) addAgent(sim *Simulation, agent *Agent) {
 
 	space.occupants = append(space.occupants, agent)
 
-	space.dispatch_occupancy_update_event(sim)
+	space.dispatchOccupancyUpdateEvent(sim)
 }
 
 func (space *Space) removeAgent(sim *Simulation, agent *Agent) {
@@ -105,10 +105,10 @@ func (space *Space) removeAgent(sim *Simulation, agent *Agent) {
 		}
 	}
 
-	space.dispatch_occupancy_update_event(sim)
+	space.dispatchOccupancyUpdateEvent(sim)
 }
 
-func (space *Space) dispatch_occupancy_update_event(sim *Simulation) {
+func (space *Space) dispatchOccupancyUpdateEvent(sim *Simulation) {
 	occupants := make([]struct {
 		Id    uuid.UUID
 		State AgentState

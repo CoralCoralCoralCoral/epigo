@@ -14,7 +14,7 @@ type InfectionProfile struct {
 	quanta_emission_rate float64
 }
 
-func (pathogen *Pathogen) generate_infection_profile() *InfectionProfile {
+func (pathogen *Pathogen) generateInfectionProfile() *InfectionProfile {
 	return &InfectionProfile{
 		incubation_period:    sampleNormal(pathogen.IncubationPeriod[0], pathogen.IncubationPeriod[1]),
 		recovery_period:      sampleNormal(pathogen.RecoveryPeriod[0], pathogen.RecoveryPeriod[1]),

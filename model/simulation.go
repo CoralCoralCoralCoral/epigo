@@ -52,14 +52,14 @@ func NewSimulation(agent_count, time_step int64, pathogen_profile Pathogen) Simu
 func (sim *Simulation) Start() {
 	go sim.logger.Broadcast()
 
-	sim.infect_random_agent()
+	sim.infectRandomAgent()
 
 	for {
 		select {
 		case command := <-sim.commands:
-			sim.process_command(command)
+			sim.processCommand(command)
 		default:
-			sim.simulate_epoch()
+			sim.simulateEpoch()
 		}
 	}
 }
@@ -72,12 +72,12 @@ func (sim *Simulation) SendCommand(command Command) {
 	sim.commands <- command
 }
 
-func (sim *Simulation) process_command(command Command) {
+func (sim *Simulation) processCommand(command Command) {
 	switch command {
 	case "lockdown\n":
-		sim.toggle_lockdown()
+		sim.toggleLockdown()
 	case "mask mandate\n":
-		sim.toggle_mask_mandate()
+		sim.toggleMaskMandate()
 	}
 
 	sim.logger.Log(logger.Event{
@@ -89,7 +89,7 @@ func (sim *Simulation) process_command(command Command) {
 	})
 }
 
-func (sim *Simulation) simulate_epoch() {
+func (sim *Simulation) simulateEpoch() {
 	sim.epoch = sim.epoch + 1
 
 	for _, agent := range sim.agents {
@@ -118,16 +118,16 @@ func (sim *Simulation) simulate_epoch() {
 	})
 }
 
-func (sim *Simulation) infect_random_agent() {
+func (sim *Simulation) infectRandomAgent() {
 	agent_idx := sampleUniform(0, int64(len(sim.agents)-1))
 	sim.agents[agent_idx].infect(sim)
 }
 
-func (sim *Simulation) toggle_mask_mandate() {
+func (sim *Simulation) toggleMaskMandate() {
 	sim.is_mask_mandate = !sim.is_mask_mandate
 }
 
-func (sim *Simulation) toggle_lockdown() {
+func (sim *Simulation) toggleLockdown() {
 	sim.is_lockdown = !sim.is_lockdown
 }
 
