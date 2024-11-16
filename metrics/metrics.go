@@ -1,4 +1,4 @@
-package model
+package metrics
 
 import (
 	"fmt"
@@ -97,7 +97,7 @@ func (metrics *Metrics) print(date string) {
 	fmt.Printf("	Interventions in effect:	%s\n", interventions)
 }
 
-func NewSubscriber() func(event *logger.Event) {
+func NewEventSubscriber() func(event *logger.Event) {
 	metrics := newMetrics()
 
 	return func(event *logger.Event) {

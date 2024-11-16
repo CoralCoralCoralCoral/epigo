@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/umran/epigo/metrics"
 	"github.com/umran/epigo/model"
 )
 
@@ -40,7 +41,7 @@ func main() {
 	sim := model.NewSimulation(150000, 15*60*1000, pathogen)
 
 	// start a new metrics instance subscribed to simulation events
-	sim.Subscribe(model.NewMetricsSubscriber())
+	sim.Subscribe(metrics.NewEventSubscriber())
 
 	go func() {
 		for {
