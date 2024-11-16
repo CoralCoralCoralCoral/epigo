@@ -19,6 +19,14 @@ type Metrics struct {
 	is_lockdown           bool
 }
 
+func NewEventSubscriber() func(event *logger.Event) {
+	metrics := newMetrics()
+
+	return func(event *logger.Event) {
+		metrics.applyEvent(event)
+	}
+}
+
 func newMetrics() *Metrics {
 	return &Metrics{
 		mu: new(sync.RWMutex),
@@ -30,6 +38,14 @@ func (metrics *Metrics) applyEvent(event *logger.Event) {
 	defer metrics.mu.Unlock()
 
 	switch event.Type {
+	case model.EpochEnd:
+		if payload, ok := event.Payload.(model.EpochEndPayload); ok {
+			if (payload.Epoch*payload.TimeStep)%(24*60*60*1000) != 0 {
+				return
+			}
+			metrics.print(payload.Time.Format("02-01-2006"))
+			metrics.reset()
+		}
 	case model.AgentStateUpdate:
 		if payload, ok := event.Payload.(model.AgentStateUpdatePayload); ok {
 			switch payload.State {
@@ -95,25 +111,4 @@ func (metrics *Metrics) print(date string) {
 	}
 
 	fmt.Printf("	Interventions in effect:	%s\n", interventions)
-}
-
-func NewEventSubscriber() func(event *logger.Event) {
-	metrics := newMetrics()
-
-	return func(event *logger.Event) {
-		switch event.Type {
-		case model.EpochEnd:
-			if payload, ok := event.Payload.(model.EpochEndPayload); ok {
-				if (payload.Epoch*payload.TimeStep)%(24*60*60*1000) != 0 {
-					return
-				}
-				metrics.print(payload.Time.Format("02-01-2006"))
-				metrics.reset()
-			} else {
-				panic("unexpected event payload")
-			}
-		default:
-			metrics.applyEvent(event)
-		}
-	}
 }
