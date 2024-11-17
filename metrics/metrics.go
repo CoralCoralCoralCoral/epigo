@@ -3,8 +3,8 @@ package metrics
 import (
 	"fmt"
 
-	"github.com/umran/epigo/logger"
-	"github.com/umran/epigo/model"
+	"github.com/CoralCoralCoralCoral/simulation-engine/logger"
+	"github.com/CoralCoralCoralCoral/simulation-engine/model"
 )
 
 type Metrics struct {

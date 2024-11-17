@@ -3,8 +3,8 @@ package model
 import (
 	"time"
 
+	"github.com/CoralCoralCoralCoral/simulation-engine/logger"
 	"github.com/google/uuid"
-	"github.com/umran/epigo/logger"
 )
 
 const EpochEnd logger.EventType = "epoch_end"

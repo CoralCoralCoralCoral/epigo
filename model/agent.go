@@ -3,8 +3,8 @@ package model
 import (
 	"math"
 
+	"github.com/CoralCoralCoralCoral/simulation-engine/logger"
 	"github.com/google/uuid"
-	"github.com/umran/epigo/logger"
 )
 
 const Susceptible AgentState = "susceptible"

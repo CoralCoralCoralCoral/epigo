@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/umran/epigo/metrics"
-	"github.com/umran/epigo/model"
+	"github.com/CoralCoralCoralCoral/simulation-engine/metrics"
+	"github.com/CoralCoralCoralCoral/simulation-engine/model"
 )
 
 func main() {

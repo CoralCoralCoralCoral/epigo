@@ -1,4 +1,4 @@
-module github.com/umran/epigo
+module github.com/CoralCoralCoralCoral/simulation-engine
 
 go 1.23.3
 

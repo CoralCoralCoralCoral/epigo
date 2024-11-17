@@ -4,8 +4,8 @@ import (
 	"math"
 	"time"
 
+	"github.com/CoralCoralCoralCoral/simulation-engine/logger"
 	"github.com/google/uuid"
-	"github.com/umran/epigo/logger"
 )
 
 type Simulation struct {
