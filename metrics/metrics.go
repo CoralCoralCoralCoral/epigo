@@ -2,14 +2,12 @@ package metrics
 
 import (
 	"fmt"
-	"sync"
 
 	"github.com/umran/epigo/logger"
 	"github.com/umran/epigo/model"
 )
 
 type Metrics struct {
-	mu                    *sync.RWMutex
 	new_infections        int
 	new_recoveries        int
 	infected_population   int
@@ -20,23 +18,14 @@ type Metrics struct {
 }
 
 func NewEventSubscriber() func(event *logger.Event) {
-	metrics := newMetrics()
+	metrics := new(Metrics)
 
 	return func(event *logger.Event) {
 		metrics.applyEvent(event)
 	}
 }
 
-func newMetrics() *Metrics {
-	return &Metrics{
-		mu: new(sync.RWMutex),
-	}
-}
-
 func (metrics *Metrics) applyEvent(event *logger.Event) {
-	metrics.mu.Lock()
-	defer metrics.mu.Unlock()
-
 	switch event.Type {
 	case model.EpochEnd:
 		if payload, ok := event.Payload.(model.EpochEndPayload); ok {
@@ -81,17 +70,11 @@ func (metrics *Metrics) applyEvent(event *logger.Event) {
 }
 
 func (metrics *Metrics) reset() {
-	metrics.mu.Lock()
-	defer metrics.mu.Unlock()
-
 	metrics.new_infections = 0
 	metrics.new_recoveries = 0
 }
 
 func (metrics *Metrics) print(date string) {
-	metrics.mu.RLock()
-	defer metrics.mu.RUnlock()
-
 	fmt.Print("\033[H\033[2J")
 
 	fmt.Printf("Epidemic state on %s\n", date)
