@@ -1,10 +1,10 @@
 package model
 
 type Pathogen struct {
-	IncubationPeriod   [2]float64
-	RecoveryPeriod     [2]float64
-	ImmunityPeriod     [2]float64
-	QuantaEmissionRate [2]float64
+	IncubationPeriod   [2]float64 `json:"incubation_period"`
+	RecoveryPeriod     [2]float64 `json:"recovery_period"`
+	ImmunityPeriod     [2]float64 `json:"immunity_period"`
+	QuantaEmissionRate [2]float64 `json:"quanta_emission_rate"`
 }
 
 type InfectionProfile struct {

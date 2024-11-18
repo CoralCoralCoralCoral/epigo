@@ -110,7 +110,8 @@ func (agent *Agent) move(sim *Simulation) {
 
 	switch agent.location.type_ {
 	case Household:
-		if sim.is_lockdown && agent.is_compliant {
+		_, _, _, policy := agent.location.state()
+		if policy.IsLockdown && agent.is_compliant {
 			break
 		}
 
@@ -180,10 +181,10 @@ func (agent *Agent) dispatchLocationUpdateEvent(sim *Simulation) {
 }
 
 func (agent *Agent) pInfected(sim *Simulation) float64 {
-	volume, _, total_infectious_doses := agent.location.state()
+	volume, _, total_infectious_doses, policy := agent.location.state()
 
 	filtration_efficiency := 0.0
-	if sim.is_mask_mandate && agent.is_compliant {
+	if policy.IsMaskMandate && agent.is_compliant {
 		filtration_efficiency = agent.mask_filtration_efficiency
 	}
 

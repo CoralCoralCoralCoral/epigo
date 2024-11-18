@@ -21,6 +21,7 @@ type Space struct {
 	volume                 float64
 	air_change_rate        float64
 	total_infectious_doses float64
+	policy                 Policy
 }
 
 type SpaceType string
@@ -35,6 +36,7 @@ func newHousehold(capacity int64) Space {
 		volume:                 sampleNormal(17, 2),
 		air_change_rate:        sampleNormal(7, 1),
 		total_infectious_doses: 0,
+		policy:                 Policy{},
 	}
 }
 
@@ -72,7 +74,7 @@ func (space *Space) update(sim *Simulation) {
 	for _, occupant := range space.occupants {
 		if occupant.state == Infectious {
 			filtration_efficiency := 0.0
-			if sim.is_mask_mandate && occupant.is_compliant {
+			if space.policy.IsMaskMandate && occupant.is_compliant {
 				filtration_efficiency = occupant.mask_filtration_efficiency
 			}
 
@@ -110,14 +112,14 @@ func (space *Space) removeAgent(sim *Simulation, agent *Agent) {
 
 func (space *Space) dispatchOccupancyUpdateEvent(sim *Simulation) {
 	occupants := make([]struct {
-		Id    uuid.UUID
-		State AgentState
+		Id    uuid.UUID  `json:"id"`
+		State AgentState `json:"state"`
 	}, len(space.occupants))
 
 	for _, occupant := range space.occupants {
 		occupants = append(occupants, struct {
-			Id    uuid.UUID
-			State AgentState
+			Id    uuid.UUID  `json:"id"`
+			State AgentState `json:"state"`
 		}{
 			Id:    occupant.id,
 			State: occupant.state,
@@ -136,9 +138,9 @@ func (space *Space) dispatchOccupancyUpdateEvent(sim *Simulation) {
 	sim.logger.Log(event)
 }
 
-func (space *Space) state() (float64, float64, float64) {
+func (space *Space) state() (float64, float64, float64, *Policy) {
 	space.mu.RLock()
 	defer space.mu.RUnlock()
 
-	return space.volume, space.air_change_rate, space.total_infectious_doses
+	return space.volume, space.air_change_rate, space.total_infectious_doses, &space.policy
 }
