@@ -1,54 +1,45 @@
 package main
 
 import (
-	"bufio"
-	"fmt"
-	"net"
+	"log"
+	"os"
 
-	"github.com/CoralCoralCoralCoral/simulation-engine/metrics"
+	"github.com/CoralCoralCoralCoral/simulation-engine/messaging"
 	"github.com/CoralCoralCoralCoral/simulation-engine/model"
+	"github.com/google/uuid"
+	"github.com/joho/godotenv"
+	"github.com/rabbitmq/amqp091-go"
 )
 
 func main() {
-	ln, err := net.Listen("tcp", ":9876")
+	if err := godotenv.Load(); err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	rmq_conn, err := amqp091.Dial(os.Getenv("RMQ_URI"))
 	if err != nil {
-		fmt.Println("Error starting server:", err)
-		return
+		log.Fatalf("couldn't create connection to rabbit: %s", err)
 	}
-	defer ln.Close()
+	defer rmq_conn.Close()
 
-	fmt.Println("Waiting for player to connect on port 9876")
+	init_rx := messaging.NewInitRx(rmq_conn)
+	init_rx.OnReceive(func(api_id uuid.UUID, config model.Config) {
+		sim := model.NewSimulation(config)
 
-	conn, err := ln.Accept()
-	if err != nil {
-		fmt.Println("Error accepting connection:", err)
-		return
-	}
-	defer conn.Close()
+		metrics_tx := messaging.NewMetricsTx(rmq_conn, api_id, sim.Id())
+		defer metrics_tx.Close()
 
-	fmt.Println("Player connected")
-	fmt.Println("Starting game...")
+		game_update_tx := messaging.NewGameUpdateTx(rmq_conn, api_id, sim.Id())
+		defer game_update_tx.Close()
 
-	// a covid-like pathogen
-	pathogen := model.Pathogen{
-		IncubationPeriod:   [2]float64{3 * 24 * 60 * 60 * 1000, 8 * 60 * 60 * 1000},
-		RecoveryPeriod:     [2]float64{7 * 24 * 60 * 60 * 1000, 8 * 60 * 60 * 1000},
-		ImmunityPeriod:     [2]float64{330 * 24 * 60 * 60 * 1000, 90 * 24 * 60 * 60 * 1000},
-		QuantaEmissionRate: [2]float64{250, 100},
-	}
+		sim.Subscribe(metrics_tx.NewEventSubscriber())
+		sim.Subscribe(game_update_tx.NewEventSubscriber())
 
-	// create a game with 150k people
-	sim := model.NewSimulation(150000, 15*60*1000, pathogen)
+		command_rx := messaging.NewCommandRx(rmq_conn, sim.Id())
+		defer command_rx.Close()
 
-	// start a new metrics instance subscribed to simulation events
-	sim.Subscribe(metrics.NewEventSubscriber())
+		go command_rx.OnReceive(sim.SendCommand)
 
-	go func() {
-		for {
-			command, _ := bufio.NewReader(conn).ReadString('\n')
-			sim.SendCommand(model.Command(command))
-		}
-	}()
-
-	sim.Start()
+		sim.Start()
+	})
 }

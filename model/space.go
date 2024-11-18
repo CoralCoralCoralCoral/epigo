@@ -4,7 +4,7 @@ import (
 	"math"
 	"sync"
 
-	"github.com/CoralCoralCoralCoral/simulation-engine/logger"
+	"github.com/CoralCoralCoralCoral/simulation-engine/protos/protos"
 	"github.com/google/uuid"
 )
 
@@ -16,11 +16,14 @@ type Space struct {
 	mu                     *sync.RWMutex
 	id                     uuid.UUID
 	type_                  SpaceType
+	lat                    float64
+	lon                    float64
 	occupants              []*Agent
 	capacity               int64
 	volume                 float64
 	air_change_rate        float64
 	total_infectious_doses float64
+	policy                 Policy
 }
 
 type SpaceType string
@@ -35,6 +38,7 @@ func newHousehold(capacity int64) Space {
 		volume:                 sampleNormal(17, 2),
 		air_change_rate:        sampleNormal(7, 1),
 		total_infectious_doses: 0,
+		policy:                 Policy{},
 	}
 }
 
@@ -72,7 +76,7 @@ func (space *Space) update(sim *Simulation) {
 	for _, occupant := range space.occupants {
 		if occupant.state == Infectious {
 			filtration_efficiency := 0.0
-			if sim.is_mask_mandate && occupant.is_compliant {
+			if space.policy.IsMaskMandate && occupant.is_compliant {
 				filtration_efficiency = occupant.mask_filtration_efficiency
 			}
 
@@ -109,36 +113,30 @@ func (space *Space) removeAgent(sim *Simulation, agent *Agent) {
 }
 
 func (space *Space) dispatchOccupancyUpdateEvent(sim *Simulation) {
-	occupants := make([]struct {
-		Id    uuid.UUID
-		State AgentState
-	}, len(space.occupants))
+	payload := &protos.SpaceOccupancyUpdatePayload{
+		Epoch:     sim.epoch,
+		Id:        sim.id.String(),
+		Occupants: make([]*protos.SpaceOccupant, 0),
+	}
 
 	for _, occupant := range space.occupants {
-		occupants = append(occupants, struct {
-			Id    uuid.UUID
-			State AgentState
-		}{
-			Id:    occupant.id,
-			State: occupant.state,
+		payload.Occupants = append(payload.Occupants, &protos.SpaceOccupant{
+			Id:    occupant.id.String(),
+			State: string(occupant.state),
 		})
 	}
 
-	event := logger.Event{
-		Type: SpaceOccupancyUpdate,
-		Payload: SpaceOccupancyUpdatePayload{
-			Epoch:     sim.epoch,
-			Id:        space.id,
-			Occupants: occupants,
+	sim.logger.Log(&protos.Event{
+		Type: protos.EventType_SpaceOccupancyUpdate,
+		Payload: &protos.Event_SpaceOccupancyUpdate{
+			SpaceOccupancyUpdate: payload,
 		},
-	}
-
-	sim.logger.Log(event)
+	})
 }
 
-func (space *Space) state() (float64, float64, float64) {
+func (space *Space) state() (float64, float64, float64, *Policy) {
 	space.mu.RLock()
 	defer space.mu.RUnlock()
 
-	return space.volume, space.air_change_rate, space.total_infectious_doses
+	return space.volume, space.air_change_rate, space.total_infectious_doses, &space.policy
 }

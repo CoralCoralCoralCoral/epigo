@@ -3,7 +3,7 @@ package model
 import (
 	"math"
 
-	"github.com/CoralCoralCoralCoral/simulation-engine/logger"
+	"github.com/CoralCoralCoralCoral/simulation-engine/protos/protos"
 	"github.com/google/uuid"
 )
 
@@ -110,7 +110,8 @@ func (agent *Agent) move(sim *Simulation) {
 
 	switch agent.location.type_ {
 	case Household:
-		if sim.is_lockdown && agent.is_compliant {
+		_, _, _, policy := agent.location.state()
+		if policy.IsLockdown && agent.is_compliant {
 			break
 		}
 
@@ -154,36 +155,42 @@ func (agent *Agent) infect(sim *Simulation) {
 }
 
 func (agent *Agent) dispatchStateUpdateEvent(sim *Simulation) {
-	event := logger.Event{
-		Type: AgentStateUpdate,
-		Payload: AgentStateUpdatePayload{
-			Epoch: sim.epoch,
-			Id:    agent.id,
-			State: agent.state,
+	sim.logger.Log(&protos.Event{
+		Type: protos.EventType_AgentStateUpdate,
+		Payload: &protos.Event_AgentStateUpdate{
+			AgentStateUpdate: &protos.AgentUpdatePayload{
+				Epoch:       sim.epoch,
+				Id:          agent.id.String(),
+				State:       string(agent.state),
+				LocationId:  agent.location.id.String(),
+				LocationLat: agent.location.lat,
+				LocationLon: agent.location.lon,
+			},
 		},
-	}
-
-	sim.logger.Log(event)
+	})
 }
 
 func (agent *Agent) dispatchLocationUpdateEvent(sim *Simulation) {
-	event := logger.Event{
-		Type: AgentLocationUpdate,
-		Payload: AgentLocationUpdatePayload{
-			Epoch:      sim.epoch,
-			Id:         agent.id,
-			LocationId: agent.location.id,
+	sim.logger.Log(&protos.Event{
+		Type: protos.EventType_AgentLocationUpdate,
+		Payload: &protos.Event_AgentLocationUpdate{
+			AgentLocationUpdate: &protos.AgentUpdatePayload{
+				Epoch:       sim.epoch,
+				Id:          agent.id.String(),
+				State:       string(agent.state),
+				LocationId:  agent.location.id.String(),
+				LocationLat: agent.location.lat,
+				LocationLon: agent.location.lon,
+			},
 		},
-	}
-
-	sim.logger.Log(event)
+	})
 }
 
 func (agent *Agent) pInfected(sim *Simulation) float64 {
-	volume, _, total_infectious_doses := agent.location.state()
+	volume, _, total_infectious_doses, policy := agent.location.state()
 
 	filtration_efficiency := 0.0
-	if sim.is_mask_mandate && agent.is_compliant {
+	if policy.IsMaskMandate && agent.is_compliant {
 		filtration_efficiency = agent.mask_filtration_efficiency
 	}
 
