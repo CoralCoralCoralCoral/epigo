@@ -10,26 +10,42 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const DAY_CHUNKS = 8
+
 type GameUpdateTx struct {
-	ch     *amqp091.Channel
-	api_id uuid.UUID
-	sim_id uuid.UUID
+	api_id  uuid.UUID
+	sim_id  uuid.UUID
+	updates chan *protos.GameUpdate
 }
 
 func NewGameUpdateTx(conn *amqp091.Connection, api_id, sim_id uuid.UUID) *GameUpdateTx {
 	ch, err := conn.Channel()
 	failOnError(err, "failed to create channel")
+	defer ch.Close()
 
 	err = ch.ExchangeDeclare("game-updates", "topic", false, true, false, false, nil)
 	failOnError(err, "failed to create exchange")
 
-	gu := new(GameUpdateTx)
+	tx := new(GameUpdateTx)
 
-	gu.ch = ch
-	gu.api_id = api_id
-	gu.sim_id = sim_id
+	tx.api_id = api_id
+	tx.sim_id = sim_id
+	tx.updates = make(chan *protos.GameUpdate, DAY_CHUNKS)
 
-	return gu
+	// spin up some go routines to read from the updates chan and send updates to rabbit
+	for range DAY_CHUNKS {
+		go func() {
+			ch, err := conn.Channel()
+			failOnError(err, "failed to create channel for goroutine")
+			defer ch.Close()
+
+			for update := range tx.updates {
+				tx.send(ch, update)
+			}
+		}()
+	}
+
+	return tx
 }
 
 func (tx *GameUpdateTx) NewEventSubscriber() func(event *protos.Event) {
@@ -39,8 +55,13 @@ func (tx *GameUpdateTx) NewEventSubscriber() func(event *protos.Event) {
 		switch event.Type {
 		case protos.EventType_EpochEnd:
 			if payload, ok := event.Payload.(*protos.Event_EpochEnd); ok {
-				if (payload.EpochEnd.Epoch*payload.EpochEnd.TimeStep)%(6*60*60*1000) == 0 {
-					tx.send(update)
+				if (payload.EpochEnd.Epoch*payload.EpochEnd.TimeStep)%(24/DAY_CHUNKS*60*60*1000) == 0 {
+					tx.updates <- &protos.GameUpdate{
+						AgentStateUpdates:    update.AgentStateUpdates,
+						AgentLocationUpdates: update.AgentLocationUpdates,
+						CommandsProcessed:    update.CommandsProcessed,
+					}
+
 					update = new(protos.GameUpdate)
 				}
 			}
@@ -52,30 +73,27 @@ func (tx *GameUpdateTx) NewEventSubscriber() func(event *protos.Event) {
 			if payload, ok := event.Payload.(*protos.Event_AgentLocationUpdate); ok {
 				update.AgentLocationUpdates = append(update.AgentLocationUpdates, payload.AgentLocationUpdate)
 			}
-			// case protos.EventType_SpaceOccupancyUpdate:
-			// 	if payload, ok := event.Payload.(*protos.Event_SpaceOccupancyUpdate); ok {
-			// 		update.SpaceOccupancyUpdates = append(update.SpaceOccupancyUpdates, payload.SpaceOccupancyUpdate)
-			// 	}
-
+		case protos.EventType_CommandProcessed:
+			if payload, ok := event.Payload.(*protos.Event_CommandProcessed); ok {
+				update.CommandsProcessed = append(update.CommandsProcessed, payload.CommandProcessed)
+			}
 		}
 	}
 }
 
-func (tx *GameUpdateTx) send(update *protos.GameUpdate) {
+func (tx *GameUpdateTx) send(ch *amqp091.Channel, update *protos.GameUpdate) {
 	routing_key := fmt.Sprintf("%s.%s", tx.api_id, tx.sim_id)
 
 	body, err := proto.Marshal(update)
-	fmt.Printf("sending %d bytes to game-updates", len(body))
+	failOnError(err, "failed to proto serialize event")
 
-	failOnError(err, "failed to serialize event")
-
-	err = tx.ch.PublishWithContext(context.Background(),
+	err = ch.PublishWithContext(context.Background(),
 		"game-updates", // exchange
 		routing_key,    // routing key
 		false,          // mandatory
 		false,          // immediate
 		amqp091.Publishing{
-			ContentType: "application/json",
+			ContentType: "application/x-protobuf",
 			Body:        body,
 		})
 

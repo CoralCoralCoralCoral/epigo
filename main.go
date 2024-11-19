@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/CoralCoralCoralCoral/simulation-engine/messaging"
-	"github.com/CoralCoralCoralCoral/simulation-engine/metrics"
 	"github.com/CoralCoralCoralCoral/simulation-engine/model"
 	"github.com/google/uuid"
 	"github.com/rabbitmq/amqp091-go"
@@ -29,7 +28,7 @@ func main() {
 	}
 
 	// start a new metrics instance subscribed to simulation events
-	sim.Subscribe(metrics.NewEventSubscriber(conn, uuid.Max, sim.Id()))
+	sim.Subscribe(messaging.NewMetricsTransmitter(conn, uuid.Max, sim.Id()).NewEventSubscriber())
 	sim.Subscribe(messaging.NewGameUpdateTx(conn, uuid.Max, sim.Id()).NewEventSubscriber())
 
 	sim.Start()

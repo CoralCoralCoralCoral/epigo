@@ -172,9 +172,11 @@ func (agent *Agent) dispatchLocationUpdateEvent(sim *Simulation) {
 		Type: protos.EventType_AgentLocationUpdate,
 		Payload: &protos.Event_AgentLocationUpdate{
 			AgentLocationUpdate: &protos.AgentLocationUpdatePayload{
-				Epoch:      sim.epoch,
-				Id:         agent.id.String(),
-				LocationId: agent.location.id.String(),
+				Epoch:       sim.epoch,
+				Id:          agent.id.String(),
+				LocationId:  agent.location.id.String(),
+				LocationLat: agent.location.lat,
+				LocationLon: agent.location.lon,
 			},
 		},
 	})

@@ -16,6 +16,8 @@ type Space struct {
 	mu                     *sync.RWMutex
 	id                     uuid.UUID
 	type_                  SpaceType
+	lat                    float64
+	lon                    float64
 	occupants              []*Agent
 	capacity               int64
 	volume                 float64
