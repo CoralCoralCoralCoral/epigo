@@ -5,7 +5,9 @@ import (
 	"time"
 
 	"github.com/CoralCoralCoralCoral/simulation-engine/logger"
+	"github.com/CoralCoralCoralCoral/simulation-engine/protos/protos"
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type Simulation struct {
@@ -20,7 +22,7 @@ type Simulation struct {
 	social_spaces []*Space
 	is_paused     bool
 	should_quit   bool
-	commands      chan Command
+	commands      chan *protos.Command
 	logger        logger.Logger
 }
 
@@ -42,7 +44,7 @@ func NewSimulation(config Config) Simulation {
 		households:    households,
 		offices:       offices,
 		social_spaces: social_spaces,
-		commands:      make(chan Command),
+		commands:      make(chan *protos.Command),
 		logger:        logger,
 	}
 }
@@ -66,11 +68,11 @@ func (sim *Simulation) Start() {
 	}
 }
 
-func (sim *Simulation) Subscribe(subscriber func(event *logger.Event)) {
+func (sim *Simulation) Subscribe(subscriber func(event *protos.Event)) {
 	sim.logger.Subscribe(subscriber)
 }
 
-func (sim *Simulation) SendCommand(command Command) {
+func (sim *Simulation) SendCommand(command *protos.Command) {
 	sim.commands <- command
 }
 
@@ -78,21 +80,23 @@ func (sim *Simulation) Id() uuid.UUID {
 	return sim.id
 }
 
-func (sim *Simulation) processCommand(command Command) {
+func (sim *Simulation) processCommand(command *protos.Command) {
 	switch command.Type {
-	case Quit:
+	case protos.CommandType_Quit:
 		sim.should_quit = true
-	case Pause:
+	case protos.CommandType_Pause:
 		sim.is_paused = true
-	case Resume:
+	case protos.CommandType_Resume:
 		sim.is_paused = false
 	}
 
-	sim.logger.Log(logger.Event{
-		Type: CommandProcessed,
-		Payload: CommandProcessedPayload{
-			Epoch:   sim.epoch,
-			Command: command,
+	sim.logger.Log(&protos.Event{
+		Type: protos.EventType_CommandProcessed,
+		Payload: &protos.Event_CommandProcessed{
+			CommandProcessed: &protos.CommandProcessedPayload{
+				Epoch:   sim.epoch,
+				Command: command,
+			},
 		},
 	})
 }
@@ -120,12 +124,14 @@ func (sim *Simulation) simulateEpoch() {
 		social_space.update(sim)
 	}
 
-	sim.logger.Log(logger.Event{
-		Type: EpochEnd,
-		Payload: EpochEndPayload{
-			Epoch:    sim.epoch,
-			TimeStep: sim.time_step,
-			Time:     sim.time(),
+	sim.logger.Log(&protos.Event{
+		Type: protos.EventType_EpochEnd,
+		Payload: &protos.Event_EpochEnd{
+			EpochEnd: &protos.EpochEndPayload{
+				Epoch:    sim.epoch,
+				TimeStep: sim.time_step,
+				Time:     timestamppb.New(sim.time()),
+			},
 		},
 	})
 }

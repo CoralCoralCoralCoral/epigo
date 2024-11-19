@@ -4,7 +4,7 @@ import (
 	"math"
 	"sync"
 
-	"github.com/CoralCoralCoralCoral/simulation-engine/logger"
+	"github.com/CoralCoralCoralCoral/simulation-engine/protos/protos"
 	"github.com/google/uuid"
 )
 
@@ -111,31 +111,25 @@ func (space *Space) removeAgent(sim *Simulation, agent *Agent) {
 }
 
 func (space *Space) dispatchOccupancyUpdateEvent(sim *Simulation) {
-	occupants := make([]struct {
-		Id    uuid.UUID  `json:"id"`
-		State AgentState `json:"state"`
-	}, len(space.occupants))
+	payload := &protos.SpaceOccupancyUpdatePayload{
+		Epoch:     sim.epoch,
+		Id:        sim.id.String(),
+		Occupants: make([]*protos.SpaceOccupant, 0),
+	}
 
 	for _, occupant := range space.occupants {
-		occupants = append(occupants, struct {
-			Id    uuid.UUID  `json:"id"`
-			State AgentState `json:"state"`
-		}{
-			Id:    occupant.id,
-			State: occupant.state,
+		payload.Occupants = append(payload.Occupants, &protos.SpaceOccupant{
+			Id:    occupant.id.String(),
+			State: string(occupant.state),
 		})
 	}
 
-	event := logger.Event{
-		Type: SpaceOccupancyUpdate,
-		Payload: SpaceOccupancyUpdatePayload{
-			Epoch:     sim.epoch,
-			Id:        space.id,
-			Occupants: occupants,
+	sim.logger.Log(&protos.Event{
+		Type: protos.EventType_SpaceOccupancyUpdate,
+		Payload: &protos.Event_SpaceOccupancyUpdate{
+			SpaceOccupancyUpdate: payload,
 		},
-	}
-
-	sim.logger.Log(event)
+	})
 }
 
 func (space *Space) state() (float64, float64, float64, *Policy) {

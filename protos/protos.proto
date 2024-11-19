@@ -1,0 +1,90 @@
+syntax = "proto3";
+package protos;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "./protos";
+
+message GameUpdate {
+    repeated AgentStateUpdatePayload agent_state_updates = 1;
+    repeated AgentLocationUpdatePayload agent_location_updates = 2;
+    repeated SpaceOccupancyUpdatePayload space_occupancy_updates = 3;
+    repeated CommandProcessedPayload commands_processed = 4;
+}
+
+message Event {
+    EventType type = 1;
+    oneof payload {
+        AgentStateUpdatePayload agent_state_update = 2;
+        AgentLocationUpdatePayload agent_location_update = 3;
+        SpaceOccupancyUpdatePayload space_occupancy_update = 4;
+        CommandProcessedPayload command_processed = 5;
+        EpochEndPayload epoch_end = 6;
+    }
+}
+
+enum EventType {
+  AgentStateUpdate = 0;
+  AgentLocationUpdate = 1;
+  SpaceOccupancyUpdate = 2;
+  CommandProcessed = 3;
+  EpochEnd = 4;
+}
+
+message AgentStateUpdatePayload {
+    int64 epoch = 1;
+    string id = 2;
+    string state = 3;
+}
+
+message AgentLocationUpdatePayload {
+    int64 epoch = 1;
+    string id = 2;
+    string location_id = 3;
+}
+
+message SpaceOccupancyUpdatePayload {
+    int64 epoch = 1;
+    string id = 2;
+    repeated SpaceOccupant occupants = 3;
+}
+
+message SpaceOccupant {
+    string id = 1;
+    string state = 2;
+}
+
+message CommandProcessedPayload {
+    int64 epoch = 1;
+    Command command = 2;
+}
+
+message Command {
+    CommandType type = 1;
+    oneof payload {
+        QuitPayload quit = 2;
+        PausePayload pause = 3;
+        ResumePayload resume = 4;
+    }
+}
+
+enum CommandType {
+    Quit = 0;
+    Pause = 1;
+    Resume = 2;
+}
+
+message QuitPayload {
+}
+
+message PausePayload {
+}
+
+message ResumePayload {
+}
+
+message EpochEndPayload {
+    int64 epoch = 1;
+    int64 time_step = 2;
+    google.protobuf.Timestamp time = 3;
+}

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/CoralCoralCoralCoral/simulation-engine/logger"
 	"github.com/CoralCoralCoralCoral/simulation-engine/messaging"
 	"github.com/CoralCoralCoralCoral/simulation-engine/model"
+	"github.com/CoralCoralCoralCoral/simulation-engine/protos/protos"
 	"github.com/google/uuid"
 	"github.com/rabbitmq/amqp091-go"
 )
@@ -21,39 +21,38 @@ type Metrics struct {
 	ImmunePopulation     int
 }
 
-func NewEventSubscriber(conn *amqp091.Connection, sim_id uuid.UUID) func(event *logger.Event) {
+func NewEventSubscriber(conn *amqp091.Connection, api_id, sim_id uuid.UUID) func(event *protos.Event) {
 	metrics := new(Metrics)
 
 	ch, err := conn.Channel()
 	failOnError(err, "failed to create channel")
 
-	err = ch.ExchangeDeclare("game-updates", "topic", false, true, false, false, nil)
+	err = ch.ExchangeDeclare("game-metrics", "topic", false, true, false, false, nil)
 	failOnError(err, "failed to create exchange")
 
-	return func(event *logger.Event) {
-		metrics.applyEvent(event, ch, sim_id)
+	return func(event *protos.Event) {
+		metrics.applyEvent(event, ch, api_id, sim_id)
 	}
 }
 
-func (metrics *Metrics) applyEvent(event *logger.Event, ch *amqp091.Channel, sim_id uuid.UUID) {
+func (metrics *Metrics) applyEvent(event *protos.Event, ch *amqp091.Channel, api_id, sim_id uuid.UUID) {
 	switch event.Type {
-	case model.EpochEnd:
-		if payload, ok := event.Payload.(model.EpochEndPayload); ok {
-			if (payload.Epoch*payload.TimeStep)%(24*60*60*1000) != 0 {
+	case protos.EventType_EpochEnd:
+		if payload, ok := event.Payload.(*protos.Event_EpochEnd); ok {
+			if (payload.EpochEnd.Epoch*payload.EpochEnd.TimeStep)%(24*60*60*1000) != 0 {
 				return
 			}
 
+			routing_key := fmt.Sprintf("%s.%s", api_id, sim_id)
+
 			body, err := json.Marshal(messaging.Message{
-				ApiId:       uuid.Max,
-				SimServerId: uuid.Max,
-				SimId:       sim_id,
-				Payload:     metrics,
+				Payload: metrics,
 			})
 			failOnError(err, "failed to serialize event")
 
 			err = ch.PublishWithContext(context.Background(),
 				"game-updates", // exchange
-				"test",         // routing key
+				routing_key,    // routing key
 				false,          // mandatory
 				false,          // immediate
 				amqp091.Publishing{
@@ -63,23 +62,23 @@ func (metrics *Metrics) applyEvent(event *logger.Event, ch *amqp091.Channel, sim
 
 			failOnError(err, "Failed to publish a message")
 
-			metrics.print(payload.Time.Format("02-01-2006"))
+			metrics.print(payload.EpochEnd.GetTime().String())
 			metrics.reset()
 		}
-	case model.AgentStateUpdate:
-		if payload, ok := event.Payload.(model.AgentStateUpdatePayload); ok {
-			switch payload.State {
-			case model.Infected:
+	case protos.EventType_AgentStateUpdate:
+		if payload, ok := event.Payload.(*protos.Event_AgentStateUpdate); ok {
+			switch payload.AgentStateUpdate.State {
+			case string(model.Infected):
 				metrics.NewInfections += 1
 				metrics.InfectedPopulation += 1
-			case model.Infectious:
+			case string(model.Infectious):
 				metrics.InfectiousPopulation += 1
-			case model.Immune:
+			case string(model.Immune):
 				metrics.ImmunePopulation += 1
 				metrics.NewRecoveries += 1
 				metrics.InfectedPopulation -= 1
 				metrics.InfectiousPopulation -= 1
-			case model.Susceptible:
+			case string(model.Susceptible):
 				metrics.ImmunePopulation -= 1
 			default:
 				panic("this should not be possible")

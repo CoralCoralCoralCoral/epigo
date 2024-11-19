@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/CoralCoralCoralCoral/simulation-engine/messaging"
 	"github.com/CoralCoralCoralCoral/simulation-engine/metrics"
 	"github.com/CoralCoralCoralCoral/simulation-engine/model"
 	"github.com/google/uuid"
@@ -28,8 +29,8 @@ func main() {
 	}
 
 	// start a new metrics instance subscribed to simulation events
-	sim.Subscribe(metrics.NewEventSubscriber(conn, sim.Id()))
-	// sim.Subscribe(messaging.NewEventTransmitter(uuid.Max, sim.Id(), conn))
+	sim.Subscribe(metrics.NewEventSubscriber(conn, uuid.Max, sim.Id()))
+	sim.Subscribe(messaging.NewGameUpdateTx(conn, uuid.Max, sim.Id()).NewEventSubscriber())
 
 	sim.Start()
 }

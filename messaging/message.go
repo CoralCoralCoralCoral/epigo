@@ -1,14 +1,7 @@
 package messaging
 
-import (
-	"github.com/google/uuid"
-)
-
 type Message struct {
-	ApiId       uuid.UUID `json:"api_id"`
-	SimServerId uuid.UUID `json:"sim_server_id"`
-	SimId       uuid.UUID `json:"sim_id"`
-	Payload     interface{}
+	Payload interface{}
 }
 
 // func (msg Message) MarshalJSON() ([]byte, error) {

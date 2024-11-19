@@ -1,23 +1,25 @@
 package logger
 
+import "github.com/CoralCoralCoralCoral/simulation-engine/protos/protos"
+
 type Logger struct {
-	events   chan Event
-	channels []chan *Event
+	events   chan *protos.Event
+	channels []chan *protos.Event
 }
 
 func NewLogger() Logger {
 	return Logger{
-		events:   make(chan Event),
-		channels: make([]chan *Event, 0),
+		events:   make(chan *protos.Event),
+		channels: make([]chan *protos.Event, 0),
 	}
 }
 
-func (logger *Logger) Log(event Event) {
+func (logger *Logger) Log(event *protos.Event) {
 	logger.events <- event
 }
 
-func (logger *Logger) Subscribe(subscriber func(event *Event)) {
-	channel := make(chan *Event)
+func (logger *Logger) Subscribe(subscriber func(event *protos.Event)) {
+	channel := make(chan *protos.Event)
 
 	logger.channels = append(logger.channels, channel)
 
@@ -34,7 +36,7 @@ func (logger *Logger) Broadcast() {
 		event := <-logger.events
 
 		for _, channel := range logger.channels {
-			channel <- &event
+			channel <- event
 		}
 	}
 }

@@ -3,7 +3,7 @@ package model
 import (
 	"math"
 
-	"github.com/CoralCoralCoralCoral/simulation-engine/logger"
+	"github.com/CoralCoralCoralCoral/simulation-engine/protos/protos"
 	"github.com/google/uuid"
 )
 
@@ -155,29 +155,29 @@ func (agent *Agent) infect(sim *Simulation) {
 }
 
 func (agent *Agent) dispatchStateUpdateEvent(sim *Simulation) {
-	event := logger.Event{
-		Type: AgentStateUpdate,
-		Payload: AgentStateUpdatePayload{
-			Epoch: sim.epoch,
-			Id:    agent.id,
-			State: agent.state,
+	sim.logger.Log(&protos.Event{
+		Type: protos.EventType_AgentStateUpdate,
+		Payload: &protos.Event_AgentStateUpdate{
+			AgentStateUpdate: &protos.AgentStateUpdatePayload{
+				Epoch: sim.epoch,
+				Id:    agent.id.String(),
+				State: string(agent.state),
+			},
 		},
-	}
-
-	sim.logger.Log(event)
+	})
 }
 
 func (agent *Agent) dispatchLocationUpdateEvent(sim *Simulation) {
-	event := logger.Event{
-		Type: AgentLocationUpdate,
-		Payload: AgentLocationUpdatePayload{
-			Epoch:      sim.epoch,
-			Id:         agent.id,
-			LocationId: agent.location.id,
+	sim.logger.Log(&protos.Event{
+		Type: protos.EventType_AgentLocationUpdate,
+		Payload: &protos.Event_AgentLocationUpdate{
+			AgentLocationUpdate: &protos.AgentLocationUpdatePayload{
+				Epoch:      sim.epoch,
+				Id:         agent.id.String(),
+				LocationId: agent.location.id.String(),
+			},
 		},
-	}
-
-	sim.logger.Log(event)
+	})
 }
 
 func (agent *Agent) pInfected(sim *Simulation) float64 {
