@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"os"
 
@@ -12,9 +13,7 @@ import (
 )
 
 func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Fatal("Error loading .env file")
-	}
+	loadDevEnvIfSet()
 
 	rmq_conn, err := amqp091.Dial(os.Getenv("RMQ_URI"))
 	if err != nil {
@@ -38,4 +37,16 @@ func main() {
 
 		sim.Start()
 	})
+}
+
+func loadDevEnvIfSet() {
+	dev := flag.Bool("dev", false, "Run in development mode")
+	flag.Parse()
+
+	if *dev {
+		log.Println("running in dev environment")
+		if err := godotenv.Load(); err != nil {
+			log.Fatal("Error loading .env file")
+		}
+	}
 }
