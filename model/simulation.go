@@ -35,7 +35,7 @@ func NewSimulation(config Config) Simulation {
 	logger := logger.NewLogger()
 
 	return Simulation{
-		id:            uuid.New(),
+		id:            config.Id,
 		pathogen:      config.Pathogen,
 		start_time:    time.Now(),
 		epoch:         0,
