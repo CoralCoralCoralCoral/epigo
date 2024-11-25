@@ -7,15 +7,10 @@ import (
 	"github.com/CoralCoralCoralCoral/simulation-engine/messaging"
 	"github.com/CoralCoralCoralCoral/simulation-engine/model"
 	"github.com/google/uuid"
-	"github.com/joho/godotenv"
 	"github.com/rabbitmq/amqp091-go"
 )
 
 func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Fatal("Error loading .env file")
-	}
-
 	rmq_conn, err := amqp091.Dial(os.Getenv("RMQ_URI"))
 	if err != nil {
 		log.Fatalf("couldn't create connection to rabbit: %s", err)
