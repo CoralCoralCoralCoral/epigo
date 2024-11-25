@@ -20,26 +20,26 @@ type Simulation struct {
 	social_spaces   []*Space
 	is_mask_mandate bool
 	is_lockdown     bool
+	is_paused       bool
+	should_quit     bool
 	commands        chan Command
 	logger          logger.Logger
 }
 
-type Command string
-
-func NewSimulation(agent_count, time_step int64, pathogen_profile Pathogen) Simulation {
-	households := createHouseholds(agent_count)
-	offices := createOffices(agent_count)
-	social_spaces := createSocialSpaces(agent_count / 100)
-	agents := createAgents(agent_count, households, offices, social_spaces)
+func NewSimulation(config Config) Simulation {
+	households := createHouseholds(config.NumAgents)
+	offices := createOffices(config.NumAgents)
+	social_spaces := createSocialSpaces(config.NumAgents / 100)
+	agents := createAgents(config.NumAgents, households, offices, social_spaces)
 
 	logger := logger.NewLogger()
 
 	return Simulation{
 		id:            uuid.New(),
-		pathogen:      pathogen_profile,
+		pathogen:      config.Pathogen,
 		start_time:    time.Now(),
 		epoch:         0,
-		time_step:     time_step,
+		time_step:     config.TimeStep,
 		agents:        agents,
 		households:    households,
 		offices:       offices,
@@ -55,6 +55,10 @@ func (sim *Simulation) Start() {
 	sim.infectRandomAgent()
 
 	for {
+		if sim.should_quit {
+			return
+		}
+
 		select {
 		case command := <-sim.commands:
 			sim.processCommand(command)
@@ -72,12 +76,18 @@ func (sim *Simulation) SendCommand(command Command) {
 	sim.commands <- command
 }
 
+func (sim *Simulation) Id() uuid.UUID {
+	return sim.id
+}
+
 func (sim *Simulation) processCommand(command Command) {
-	switch command {
-	case "lockdown\n":
-		sim.toggleLockdown()
-	case "mask mandate\n":
-		sim.toggleMaskMandate()
+	switch command.Type {
+	case Quit:
+		sim.should_quit = true
+	case Pause:
+		sim.is_paused = true
+	case Resume:
+		sim.is_paused = false
 	}
 
 	sim.logger.Log(logger.Event{
@@ -90,6 +100,10 @@ func (sim *Simulation) processCommand(command Command) {
 }
 
 func (sim *Simulation) simulateEpoch() {
+	if sim.is_paused {
+		return
+	}
+
 	sim.epoch = sim.epoch + 1
 
 	for _, agent := range sim.agents {
@@ -121,14 +135,6 @@ func (sim *Simulation) simulateEpoch() {
 func (sim *Simulation) infectRandomAgent() {
 	agent_idx := sampleUniform(0, int64(len(sim.agents)-1))
 	sim.agents[agent_idx].infect(sim)
-}
-
-func (sim *Simulation) toggleMaskMandate() {
-	sim.is_mask_mandate = !sim.is_mask_mandate
-}
-
-func (sim *Simulation) toggleLockdown() {
-	sim.is_lockdown = !sim.is_lockdown
 }
 
 func (sim *Simulation) time() time.Time {
