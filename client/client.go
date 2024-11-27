@@ -9,10 +9,14 @@ import (
 
 func main() {
 	pathogen := model.Pathogen{
-		IncubationPeriod:   [2]float64{3 * 24 * 60 * 60 * 1000, 8 * 60 * 60 * 1000},
-		RecoveryPeriod:     [2]float64{7 * 24 * 60 * 60 * 1000, 8 * 60 * 60 * 1000},
-		ImmunityPeriod:     [2]float64{330 * 24 * 60 * 60 * 1000, 90 * 24 * 60 * 60 * 1000},
-		QuantaEmissionRate: [2]float64{250, 100},
+		IncubationPeriod:           [2]float64{3 * 24 * 60 * 60 * 1000, 8 * 60 * 60 * 1000},
+		RecoveryPeriod:             [2]float64{7 * 24 * 60 * 60 * 1000, 8 * 60 * 60 * 1000},
+		ImmunityPeriod:             [2]float64{330 * 24 * 60 * 60 * 1000, 90 * 24 * 60 * 60 * 1000},
+		PrehospitalizationPeriod:   [2]float64{3 * 24 * 60 * 60 * 1000, 8 * 60 * 60 * 1000},
+		HospitalizationPeriod:      [2]float64{7 * 24 * 60 * 60 * 1000, 3 * 24 * 60 * 60 * 1000},
+		QuantaEmissionRate:         [2]float64{250, 100},
+		HospitalizationProbability: 0,
+		DeathProbability:           0,
 	}
 
 	config := model.Config{

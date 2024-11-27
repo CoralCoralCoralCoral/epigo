@@ -10,6 +10,8 @@ import (
 const Susceptible AgentState = "susceptible"
 const Infected AgentState = "infected"
 const Infectious AgentState = "infectious"
+const Hospitalized AgentState = "hospitalized"
+const Dead AgentState = "dead"
 const Immune AgentState = "immune"
 
 type Agent struct {
@@ -51,13 +53,17 @@ func newAgent() Agent {
 		infection_profile:          nil,
 		pulmonary_ventilation_rate: sampleNormal(0.36, 0.01),
 		is_compliant:               is_compliant,
-		mask_filtration_efficiency: math.Max(sampleNormal(0.95, 0.15), 1),
+		mask_filtration_efficiency: math.Max(sampleNormal(0.8, 0.15), 1),
 	}
 }
 
 func (agent *Agent) update(sim *Simulation) {
+	if agent.state == Dead {
+		return
+	}
+
 	agent.updateState(sim)
-	agent.move(sim)
+	agent.updateLocation(sim)
 }
 
 func (agent *Agent) updateState(sim *Simulation) {
@@ -68,39 +74,64 @@ func (agent *Agent) updateState(sim *Simulation) {
 		is_infected := sampleBernoulli(agent.pInfected(sim))
 
 		if is_infected == 1 {
-			agent.state = Infected
-			agent.state_change_epoch = sim.epoch
 			agent.infection_profile = sim.pathogen.generateInfectionProfile()
-			agent.dispatchStateUpdateEvent(sim)
+			agent.setState(sim, Infected)
 		}
 	case Infected:
 		if state_duration >= agent.infection_profile.incubation_period {
-			agent.state = Infectious
-			agent.state_change_epoch = sim.epoch
-			agent.dispatchStateUpdateEvent(sim)
+			agent.setState(sim, Infectious)
 		}
 	case Infectious:
-		if state_duration >= agent.infection_profile.recovery_period {
-			agent.state = Immune
-			agent.state_change_epoch = sim.epoch
-			agent.dispatchStateUpdateEvent(sim)
+		switch agent.infection_profile.is_hospitalized {
+		case true:
+			if state_duration >= agent.infection_profile.prehospitalization_period {
+				agent.setState(sim, Hospitalized)
+			}
+		case false:
+			if state_duration >= agent.infection_profile.recovery_period {
+				agent.setState(sim, Immune)
+			}
+		}
+	case Hospitalized:
+		if state_duration >= agent.infection_profile.hospitalization_period {
+			if agent.infection_profile.is_dead {
+				agent.setState(sim, Dead)
+			} else if agent.infection_profile != nil {
+				agent.setState(sim, Immune)
+			} else {
+				agent.setState(sim, Susceptible)
+			}
 		}
 	case Immune:
 		if state_duration >= agent.infection_profile.immunity_period {
-			agent.state = Susceptible
-			agent.state_change_epoch = sim.epoch
 			agent.infection_profile = nil
-			agent.dispatchStateUpdateEvent(sim)
+			agent.setState(sim, Susceptible)
 		}
+	case Dead:
+		// noop
 	default:
 		panic("this shouldn't be possible")
 	}
 }
 
-func (agent *Agent) move(sim *Simulation) {
+func (agent *Agent) setState(sim *Simulation, state AgentState) {
+	previous_state := agent.state
+
+	agent.state = state
+	agent.state_change_epoch = sim.epoch
+	agent.dispatchStateUpdateEvent(sim, previous_state)
+}
+
+func (agent *Agent) updateLocation(sim *Simulation) {
 	if agent.next_move_epoch == 0 {
 		// assumes agent is in household
 		agent.next_move_epoch = sim.epoch + int64(math.Ceil(sampleNormal(12*60*60*1000, 4*60*60*1000)/float64(sim.time_step)))
+	}
+
+	// in the special case where the agent state transitioned to
+	// Hospitalized in this epoch, we set next_move_epoch to this epoch
+	if agent.state == Hospitalized && agent.state_change_epoch == sim.epoch {
+		agent.next_move_epoch = sim.epoch
 	}
 
 	if sim.epoch < agent.next_move_epoch {
@@ -110,73 +141,84 @@ func (agent *Agent) move(sim *Simulation) {
 	var next_location *Space = nil
 	var next_location_duration float64 = 0
 
-	location_type, _, _, _, policy := agent.location.state()
+	if agent.state == Hospitalized && agent.state_change_epoch == sim.epoch {
+		next_location = agent.healthcare_spaces[sampleUniform(0, int64(len(agent.healthcare_spaces)-1))]
+		next_location_duration = agent.infection_profile.hospitalization_period
+	} else {
+		location_type, _, _, _, policy := agent.location.state()
+		switch location_type {
+		case Household:
+			if policy != nil && policy.IsLockDown && agent.is_compliant {
+				break
+			}
 
-	switch location_type {
-	case Household:
-		if policy != nil && policy.IsLockDown && agent.is_compliant {
-			break
+			if sampleBernoulli(0.55) == 1 {
+				next_location = agent.office
+				next_location_duration = sampleNormal(8*60*60*1000, 2*60*60*1000)
+			} else {
+				// select a social space at uniform random from the agent's list of social spaces.
+				// in reality this wouldn't be uniform random, rather mostly a function of proximity,
+				// which can be implemented once geospatial attributes are added to spaces
+				next_location = agent.social_spaces[sampleUniform(0, int64(len(agent.social_spaces)-1))]
+				next_location_duration = sampleNormal(45*60*1000, 15*60*1000)
+			}
+		case Office, SocialSpace, HealthCareSpace:
+			next_location = agent.household
+			next_location_duration = sampleNormal(12*60*60*1000, 4*60*60*1000)
+		default:
+			panic("this shouldn't happen")
 		}
-
-		if sampleBernoulli(0.55) == 1 {
-			next_location = agent.office
-			next_location_duration = sampleNormal(8*60*60*1000, 2*60*60*1000)
-		} else {
-			// select a social space at uniform random from the agent's list of social spaces.
-			// in reality this wouldn't be uniform random, rather mostly a function of proximity,
-			// which can be implemented once geospatial attributes are added to spaces
-			next_location = agent.social_spaces[sampleUniform(0, int64(len(agent.social_spaces)-1))]
-			next_location_duration = sampleNormal(45*60*1000, 15*60*1000)
-		}
-	case Office, SocialSpace:
-		next_location = agent.household
-		next_location_duration = sampleNormal(12*60*60*1000, 4*60*60*1000)
-	default:
-		panic("this shouldn't happen")
 	}
 
 	if next_location != nil {
-		// remove agent from current location
-		agent.location.removeAgent(sim, agent)
-
-		// push agent to next location
-		next_location.addAgent(sim, agent)
-
-		// set the agent's location to next location
-		agent.location = next_location
-		agent.location_change_epoch = sim.epoch
-		agent.next_move_epoch = sim.epoch + int64(math.Ceil(next_location_duration/float64(sim.time_step)))
-		agent.dispatchLocationUpdateEvent(sim)
+		agent.setLocation(sim, next_location, next_location_duration)
 	}
 }
 
-func (agent *Agent) infect(sim *Simulation) {
-	agent.state = Infected
-	agent.state_change_epoch = sim.epoch
-	agent.infection_profile = sim.pathogen.generateInfectionProfile()
-	agent.dispatchStateUpdateEvent(sim)
+func (agent *Agent) setLocation(sim *Simulation, location *Space, duration float64) {
+	previous_location_id := agent.location.id
+
+	// remove agent from current location
+	agent.location.removeAgent(sim, agent)
+
+	// push agent to next location
+	location.addAgent(sim, agent)
+
+	// set the agent's location to next location
+	agent.location = location
+	agent.location_change_epoch = sim.epoch
+	agent.next_move_epoch = sim.epoch + int64(math.Ceil(duration/float64(sim.time_step)))
+	agent.dispatchLocationUpdateEvent(sim, previous_location_id)
 }
 
-func (agent *Agent) dispatchStateUpdateEvent(sim *Simulation) {
+func (agent *Agent) infect(sim *Simulation) {
+	agent.infection_profile = sim.pathogen.generateInfectionProfile()
+	agent.setState(sim, Infected)
+}
+
+func (agent *Agent) dispatchStateUpdateEvent(sim *Simulation, previous_state AgentState) {
 	event := logger.Event{
 		Type: AgentStateUpdate,
 		Payload: AgentStateUpdatePayload{
-			Epoch: sim.epoch,
-			Id:    agent.id,
-			State: agent.state,
+			Epoch:               sim.epoch,
+			Id:                  agent.id,
+			State:               agent.state,
+			PreviousState:       previous_state,
+			HasInfectionProfile: agent.infection_profile != nil,
 		},
 	}
 
 	sim.logger.Log(event)
 }
 
-func (agent *Agent) dispatchLocationUpdateEvent(sim *Simulation) {
+func (agent *Agent) dispatchLocationUpdateEvent(sim *Simulation, previous_location_id uuid.UUID) {
 	event := logger.Event{
 		Type: AgentLocationUpdate,
 		Payload: AgentLocationUpdatePayload{
-			Epoch:      sim.epoch,
-			Id:         agent.id,
-			LocationId: agent.location.id,
+			Epoch:              sim.epoch,
+			Id:                 agent.id,
+			LocationId:         agent.location.id,
+			PreviousLocationId: previous_location_id,
 		},
 	}
 

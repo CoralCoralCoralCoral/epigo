@@ -133,6 +133,10 @@ func (sim *Simulation) simulateEpoch() {
 		social_space.update(sim)
 	}
 
+	for _, healthcare_space := range sim.healthcare_spaces {
+		healthcare_space.update(sim)
+	}
+
 	sim.logger.Log(logger.Event{
 		Type: EpochEnd,
 		Payload: EpochEndPayload{
@@ -222,7 +226,7 @@ func createSocialSpaces(total_capacity int64, jurisdictions []*Jurisdiction, mso
 }
 
 func createHealthCareSpaces(total_capacity int64, jurisdictions []*Jurisdiction, msoa_sampler *geo.MSOASampler) []*Space {
-	social_spaces := make([]*Space, 0)
+	healthcare_spaces := make([]*Space, 0)
 
 	for remaining_capacity := total_capacity; remaining_capacity > 0; {
 		capacity := int64(math.Max(math.Floor(sampleNormal(173, 25)), 1))
@@ -231,14 +235,14 @@ func createHealthCareSpaces(total_capacity int64, jurisdictions []*Jurisdiction,
 			capacity = remaining_capacity
 		}
 
-		social_space := newHealthcareSpace(capacity)
-		social_space.jurisdiction = sampleJurisdiction(jurisdictions, msoa_sampler)
-		social_spaces = append(social_spaces, &social_space)
+		healthcare_space := newHealthcareSpace(capacity)
+		healthcare_space.jurisdiction = sampleJurisdiction(jurisdictions, msoa_sampler)
+		healthcare_spaces = append(healthcare_spaces, &healthcare_space)
 
 		remaining_capacity -= capacity
 	}
 
-	return social_spaces
+	return healthcare_spaces
 }
 
 func createAgents(count int64, households, offices []*Space, social_spaces []*Space, healthcare_spaces []*Space) []*Agent {
