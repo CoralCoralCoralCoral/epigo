@@ -20,7 +20,7 @@ func loadMSOAs() []*MSOA {
 
 	var msoas []*MSOA
 	for _, record := range records {
-		popDensity, err := strconv.ParseFloat(record[2], 64)
+		pop_density, err := strconv.ParseFloat(record[2], 64)
 		if err != nil {
 			log.Fatalf("invalid population density in msoa source: %v", err)
 		}
@@ -28,7 +28,7 @@ func loadMSOAs() []*MSOA {
 		msoas = append(msoas, &MSOA{
 			Name:              record[0],
 			GISCode:           record[1],
-			PopulationDensity: popDensity,
+			PopulationDensity: pop_density,
 		})
 	}
 
