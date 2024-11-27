@@ -4,6 +4,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/CoralCoralCoralCoral/simulation-engine/geo"
 	"github.com/CoralCoralCoralCoral/simulation-engine/logger"
 	"github.com/google/uuid"
 )
@@ -26,10 +27,12 @@ type Simulation struct {
 }
 
 func NewSimulation(config Config) Simulation {
-	jurisdictions := createJurisdictions()
-	households := createHouseholds(config.NumAgents)
-	offices := createOffices(config.NumAgents)
-	social_spaces := createSocialSpaces(config.NumAgents / 100)
+	msoa_sampler := geo.NewMSOASampler()
+
+	jurisdictions := jurisdictionsFromFeatures()
+	households := createHouseholds(config.NumAgents, jurisdictions, msoa_sampler)
+	offices := createOffices(config.NumAgents, jurisdictions, msoa_sampler)
+	social_spaces := createSocialSpaces(config.NumAgents/100, jurisdictions, msoa_sampler)
 	agents := createAgents(config.NumAgents, households, offices, social_spaces)
 
 	logger := logger.NewLogger()
@@ -93,10 +96,6 @@ func (sim *Simulation) processCommand(command Command) {
 		if payload, ok := command.Payload.(ApplyJurisdictionPolicyPayload); ok {
 			sim.applyJurisdictionPolicy(payload)
 		}
-	case ApplySpacePolicy:
-		if payload, ok := command.Payload.(ApplySpacePolicyPayload); ok {
-			sim.applySpacePolicy(payload)
-		}
 	}
 
 	sim.logger.Log(logger.Event{
@@ -159,36 +158,7 @@ func (sim *Simulation) applyJurisdictionPolicy(payload ApplyJurisdictionPolicyPa
 	}
 }
 
-func (sim *Simulation) applySpacePolicy(payload ApplySpacePolicyPayload) {
-	for _, space := range sim.households {
-		if space.id == payload.SpaceId {
-			space.applyPolicy(&payload.Policy)
-			return
-		}
-	}
-
-	for _, space := range sim.offices {
-		if space.id == payload.SpaceId {
-			space.applyPolicy(&payload.Policy)
-			return
-		}
-	}
-
-	for _, space := range sim.social_spaces {
-		if space.id == payload.SpaceId {
-			space.applyPolicy(&payload.Policy)
-			return
-		}
-	}
-}
-
-func createJurisdictions() []*Jurisdiction {
-	jurisdictions := make([]*Jurisdiction, 0)
-
-	return jurisdictions
-}
-
-func createHouseholds(total_capacity int64) []*Space {
+func createHouseholds(total_capacity int64, jurisdictions []*Jurisdiction, msoa_sampler *geo.MSOASampler) []*Space {
 	households := make([]*Space, 0)
 
 	for remaining_capacity := total_capacity; remaining_capacity > 0; {
@@ -199,6 +169,7 @@ func createHouseholds(total_capacity int64) []*Space {
 		}
 
 		household := newHousehold(capacity)
+		household.jurisdiction = sampleJurisdiction(jurisdictions, msoa_sampler)
 		households = append(households, &household)
 
 		remaining_capacity -= capacity
@@ -207,7 +178,7 @@ func createHouseholds(total_capacity int64) []*Space {
 	return households
 }
 
-func createOffices(total_capacity int64) []*Space {
+func createOffices(total_capacity int64, jurisdictions []*Jurisdiction, msoa_sampler *geo.MSOASampler) []*Space {
 	offices := make([]*Space, 0)
 
 	for remaining_capacity := total_capacity; remaining_capacity > 0; {
@@ -218,6 +189,7 @@ func createOffices(total_capacity int64) []*Space {
 		}
 
 		office := newOffice(capacity)
+		office.jurisdiction = sampleJurisdiction(jurisdictions, msoa_sampler)
 		offices = append(offices, &office)
 
 		remaining_capacity -= capacity
@@ -226,7 +198,7 @@ func createOffices(total_capacity int64) []*Space {
 	return offices
 }
 
-func createSocialSpaces(total_capacity int64) []*Space {
+func createSocialSpaces(total_capacity int64, jurisdictions []*Jurisdiction, msoa_sampler *geo.MSOASampler) []*Space {
 	social_spaces := make([]*Space, 0)
 
 	for remaining_capacity := total_capacity; remaining_capacity > 0; {
@@ -237,6 +209,7 @@ func createSocialSpaces(total_capacity int64) []*Space {
 		}
 
 		social_space := newSocialSpace(capacity)
+		social_space.jurisdiction = sampleJurisdiction(jurisdictions, msoa_sampler)
 		social_spaces = append(social_spaces, &social_space)
 
 		remaining_capacity -= capacity

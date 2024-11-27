@@ -15,7 +15,6 @@ type Space struct {
 	id                     uuid.UUID
 	type_                  SpaceType
 	jurisdiction           *Jurisdiction
-	policy                 *Policy
 	occupants              []*Agent
 	capacity               int64
 	volume                 float64
@@ -129,22 +128,14 @@ func (space *Space) dispatchOccupancyUpdateEvent(sim *Simulation) {
 	sim.logger.Log(event)
 }
 
-func (space *Space) applyPolicy(policy *Policy) {
-	space.policy = policy
-}
-
 func (space *Space) state() (SpaceType, float64, float64, float64, *Policy) {
 	return space.type_, space.volume, space.air_change_rate, space.total_infectious_doses, space.resolvePolicy()
 }
 
-func (space *Space) resolvePolicy() *Policy {
-	if space.policy != nil {
-		return space.policy
-	}
-
+func (space *Space) resolvePolicy() (policy *Policy) {
 	if space.jurisdiction != nil {
-		return space.jurisdiction.resolvePolicy()
+		policy = space.jurisdiction.resolvePolicy()
 	}
 
-	return nil
+	return
 }

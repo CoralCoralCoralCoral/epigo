@@ -1,55 +1,89 @@
 package model
 
-import "github.com/google/uuid"
+import "github.com/CoralCoralCoralCoral/simulation-engine/geo"
 
 type Jurisdiction struct {
-	id       uuid.UUID
-	name     string
-	parent   *Jurisdiction
-	children []*Jurisdiction
-	policy   *Policy
+	id     string
+	parent *Jurisdiction
+	policy *Policy
 }
 
-func NewJurisdiction(name string, parent *Jurisdiction) *Jurisdiction {
+func newJurisdiction(id string, parent *Jurisdiction) *Jurisdiction {
 	jur := Jurisdiction{
-		id:       uuid.New(),
-		name:     name,
-		parent:   parent,
-		children: make([]*Jurisdiction, 0),
+		id:     id,
+		parent: parent,
 	}
-
-	parent.addChild(&jur)
 
 	return &jur
 }
 
-func (jur *Jurisdiction) addChild(child *Jurisdiction) {
-	for _, existing_child := range jur.children {
-		if existing_child.id == child.id {
-			return
+func jurisdictionsFromFeatures() []*Jurisdiction {
+	features := geo.LoadFeatures()
+
+	jurisdictions := make([]*Jurisdiction, 0, len(features))
+
+	// create jurisdictions
+	for _, feature := range features {
+		jurisdictions = append(jurisdictions, newJurisdiction(feature.Code(), nil))
+	}
+
+	// assign parents
+	for _, feature := range features {
+		if parent_code := feature.ParentCode(); parent_code != "" {
+			jur := findJurisdiction(jurisdictions, func(val *Jurisdiction) bool {
+				return val.Id() == feature.Code()
+			})
+
+			// find parent_jurisdiction
+			parent_jur := findJurisdiction(jurisdictions, func(val *Jurisdiction) bool {
+				return val.Id() == parent_code
+			})
+
+			if jur != nil && parent_jur != nil {
+				jur.parent = parent_jur
+			}
 		}
 	}
 
-	jur.children = append(jur.children, child)
+	return jurisdictions
+}
+
+func sampleJurisdiction(jurisdictions []*Jurisdiction, msoa_sampler *geo.MSOASampler) *Jurisdiction {
+	msoa := msoa_sampler.Sample()
+
+	jur := findJurisdiction(jurisdictions, func(val *Jurisdiction) bool {
+		return val.Id() == msoa.GISCode
+	})
+
+	return jur
+}
+
+func findJurisdiction(jurisdictions []*Jurisdiction, predicate func(value *Jurisdiction) bool) *Jurisdiction {
+	for _, value := range jurisdictions {
+		if predicate(value) {
+			return value
+		}
+	}
+
+	return nil
+}
+
+func (jur *Jurisdiction) Id() string {
+	return jur.id
 }
 
 func (jur *Jurisdiction) applyPolicy(policy *Policy) {
 	jur.policy = policy
 }
 
-func (jur *Jurisdiction) resolvePolicy() *Policy {
-	current := jur
-	for {
-		if current.policy != nil {
-			return current.policy
-		}
-
-		if current.parent == nil {
-			break
-		}
-
-		current = current.parent
+func (jur *Jurisdiction) resolvePolicy() (policy *Policy) {
+	if jur.parent != nil {
+		policy = jur.parent.resolvePolicy()
 	}
 
-	return nil
+	if policy == nil {
+		policy = jur.policy
+	}
+
+	return
 }
