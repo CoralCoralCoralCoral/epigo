@@ -17,6 +17,7 @@ type Agent struct {
 	household                  *Space
 	office                     *Space
 	social_spaces              []*Space
+	healthcare_spaces          []*Space
 	location                   *Space
 	location_change_epoch      int64
 	next_move_epoch            int64
@@ -41,6 +42,7 @@ func newAgent() Agent {
 		household:                  nil,
 		office:                     nil,
 		social_spaces:              make([]*Space, 0),
+		healthcare_spaces:          make([]*Space, 0),
 		location:                   nil,
 		location_change_epoch:      0,
 		next_move_epoch:            0,
