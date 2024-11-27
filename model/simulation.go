@@ -133,6 +133,10 @@ func (sim *Simulation) simulateEpoch() {
 		social_space.update(sim)
 	}
 
+	for _, healthcare_space := range sim.healthcare_spaces {
+		healthcare_space.update(sim)
+	}
+
 	sim.logger.Log(logger.Event{
 		Type: EpochEnd,
 		Payload: EpochEndPayload{
