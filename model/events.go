@@ -25,15 +25,18 @@ type CommandProcessedPayload struct {
 }
 
 type AgentStateUpdatePayload struct {
-	Epoch int64      `json:"epoch"`
-	Id    uuid.UUID  `json:"id"`
-	State AgentState `json:"state"`
+	Epoch               int64      `json:"epoch"`
+	Id                  uuid.UUID  `json:"id"`
+	State               AgentState `json:"state"`
+	PreviousState       AgentState `json:"previous_state"`
+	HasInfectionProfile bool       `json:"has_infection_profile"`
 }
 
 type AgentLocationUpdatePayload struct {
-	Epoch      int64     `json:"epoch"`
-	Id         uuid.UUID `json:"id"`
-	LocationId uuid.UUID `json:"location_id"`
+	Epoch              int64     `json:"epoch"`
+	Id                 uuid.UUID `json:"id"`
+	LocationId         uuid.UUID `json:"location_id"`
+	PreviousLocationId uuid.UUID `json:"previous_location_id"`
 }
 
 type SpaceOccupancyUpdatePayload struct {
