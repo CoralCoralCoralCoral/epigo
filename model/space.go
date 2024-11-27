@@ -10,6 +10,7 @@ import (
 const Household SpaceType = "household"
 const Office SpaceType = "office"
 const SocialSpace SpaceType = "social_space"
+const HealthCareSpace = "healthcare_space"
 
 type Space struct {
 	id                     uuid.UUID
@@ -20,6 +21,10 @@ type Space struct {
 	volume                 float64
 	air_change_rate        float64
 	total_infectious_doses float64
+
+	// healthcare related props
+	test_capacity int64
+	test_backlog  chan bool
 }
 
 type SpaceType string
@@ -60,6 +65,22 @@ func newSocialSpace(capacity int64) Space {
 		volume:                 sampleNormal(60, 10),
 		air_change_rate:        sampleNormal(20, 5),
 		total_infectious_doses: 0,
+	}
+}
+
+func newHealthcareSpace(capacity int64) Space {
+	return Space{
+		id:                     uuid.New(),
+		type_:                  HealthCareSpace,
+		jurisdiction:           nil,
+		occupants:              make([]*Agent, 0),
+		capacity:               capacity,
+		volume:                 sampleNormal(60, 10),
+		air_change_rate:        sampleNormal(20, 5),
+		total_infectious_doses: 0,
+
+		test_capacity: int64(math.Max(1, math.Floor(sampleNormal(300, 150)))),
+		test_backlog:  make(chan bool, 100000),
 	}
 }
 

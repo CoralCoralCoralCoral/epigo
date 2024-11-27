@@ -10,20 +10,21 @@ import (
 )
 
 type Simulation struct {
-	id            uuid.UUID
-	pathogen      Pathogen
-	start_time    time.Time
-	epoch         int64
-	time_step     int64
-	agents        []*Agent
-	jurisdictions []*Jurisdiction
-	households    []*Space
-	offices       []*Space
-	social_spaces []*Space
-	is_paused     bool
-	should_quit   bool
-	commands      chan Command
-	logger        logger.Logger
+	id                uuid.UUID
+	pathogen          Pathogen
+	start_time        time.Time
+	epoch             int64
+	time_step         int64
+	agents            []*Agent
+	jurisdictions     []*Jurisdiction
+	households        []*Space
+	offices           []*Space
+	social_spaces     []*Space
+	healthcare_spaces []*Space
+	is_paused         bool
+	should_quit       bool
+	commands          chan Command
+	logger            logger.Logger
 }
 
 func NewSimulation(config Config) Simulation {
@@ -33,23 +34,25 @@ func NewSimulation(config Config) Simulation {
 	households := createHouseholds(config.NumAgents, jurisdictions, msoa_sampler)
 	offices := createOffices(config.NumAgents, jurisdictions, msoa_sampler)
 	social_spaces := createSocialSpaces(config.NumAgents/100, jurisdictions, msoa_sampler)
-	agents := createAgents(config.NumAgents, households, offices, social_spaces)
+	healthcare_spaces := createHealthCareSpaces(config.NumAgents/1000*5, jurisdictions, msoa_sampler)
+	agents := createAgents(config.NumAgents, households, offices, social_spaces, healthcare_spaces)
 
 	logger := logger.NewLogger()
 
 	return Simulation{
-		id:            config.Id,
-		pathogen:      config.Pathogen,
-		start_time:    time.Now(),
-		epoch:         0,
-		time_step:     config.TimeStep,
-		agents:        agents,
-		jurisdictions: jurisdictions,
-		households:    households,
-		offices:       offices,
-		social_spaces: social_spaces,
-		commands:      make(chan Command),
-		logger:        logger,
+		id:                config.Id,
+		pathogen:          config.Pathogen,
+		start_time:        time.Now(),
+		epoch:             0,
+		time_step:         config.TimeStep,
+		agents:            agents,
+		jurisdictions:     jurisdictions,
+		households:        households,
+		offices:           offices,
+		social_spaces:     social_spaces,
+		healthcare_spaces: healthcare_spaces,
+		commands:          make(chan Command),
+		logger:            logger,
 	}
 }
 
@@ -218,7 +221,27 @@ func createSocialSpaces(total_capacity int64, jurisdictions []*Jurisdiction, mso
 	return social_spaces
 }
 
-func createAgents(count int64, households, offices []*Space, social_spaces []*Space) []*Agent {
+func createHealthCareSpaces(total_capacity int64, jurisdictions []*Jurisdiction, msoa_sampler *geo.MSOASampler) []*Space {
+	social_spaces := make([]*Space, 0)
+
+	for remaining_capacity := total_capacity; remaining_capacity > 0; {
+		capacity := int64(math.Max(math.Floor(sampleNormal(173, 25)), 1))
+
+		if capacity > remaining_capacity {
+			capacity = remaining_capacity
+		}
+
+		social_space := newHealthcareSpace(capacity)
+		social_space.jurisdiction = sampleJurisdiction(jurisdictions, msoa_sampler)
+		social_spaces = append(social_spaces, &social_space)
+
+		remaining_capacity -= capacity
+	}
+
+	return social_spaces
+}
+
+func createAgents(count int64, households, offices []*Space, social_spaces []*Space, healthcare_spaces []*Space) []*Agent {
 	agents := make([]*Agent, count)
 
 	for i := 0; i < int(count); i++ {
@@ -227,6 +250,11 @@ func createAgents(count int64, households, offices []*Space, social_spaces []*Sp
 		num_social_spaces := int(math.Max(1, math.Floor(sampleNormal(5, 4))))
 		for i := 0; i < num_social_spaces; i++ {
 			agent.social_spaces = append(agent.social_spaces, social_spaces[sampleUniform(0, int64(len(social_spaces)-1))])
+		}
+
+		num_healthcare_spaces := int(math.Max(1, math.Floor(sampleNormal(5, 4))))
+		for i := 0; i < num_healthcare_spaces; i++ {
+			agent.healthcare_spaces = append(agent.healthcare_spaces, healthcare_spaces[sampleUniform(0, int64(len(healthcare_spaces)-1))])
 		}
 
 		agents[i] = &agent
