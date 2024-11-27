@@ -2,7 +2,6 @@ package model
 
 import (
 	"math"
-	"sync"
 
 	"github.com/CoralCoralCoralCoral/simulation-engine/logger"
 	"github.com/google/uuid"
@@ -13,9 +12,9 @@ const Office SpaceType = "office"
 const SocialSpace SpaceType = "social_space"
 
 type Space struct {
-	mu                     *sync.RWMutex
 	id                     uuid.UUID
 	type_                  SpaceType
+	jurisdiction           *Jurisdiction
 	occupants              []*Agent
 	capacity               int64
 	volume                 float64
@@ -27,9 +26,9 @@ type SpaceType string
 
 func newHousehold(capacity int64) Space {
 	return Space{
-		mu:                     new(sync.RWMutex),
 		id:                     uuid.New(),
 		type_:                  Household,
+		jurisdiction:           nil,
 		occupants:              make([]*Agent, 0),
 		capacity:               capacity,
 		volume:                 sampleNormal(17, 2),
@@ -40,9 +39,9 @@ func newHousehold(capacity int64) Space {
 
 func newOffice(capacity int64) Space {
 	return Space{
-		mu:                     new(sync.RWMutex),
 		id:                     uuid.New(),
 		type_:                  Office,
+		jurisdiction:           nil,
 		occupants:              make([]*Agent, 0),
 		capacity:               capacity,
 		volume:                 sampleNormal(60, 20),
@@ -53,9 +52,9 @@ func newOffice(capacity int64) Space {
 
 func newSocialSpace(capacity int64) Space {
 	return Space{
-		mu:                     new(sync.RWMutex),
 		id:                     uuid.New(),
 		type_:                  SocialSpace,
+		jurisdiction:           nil,
 		occupants:              make([]*Agent, 0),
 		capacity:               capacity,
 		volume:                 sampleNormal(60, 10),
@@ -65,14 +64,13 @@ func newSocialSpace(capacity int64) Space {
 }
 
 func (space *Space) update(sim *Simulation) {
-	space.mu.Lock()
-	defer space.mu.Unlock()
+	policy := space.resolvePolicy()
 
 	// introduce new infectious doses from infectious occupants
 	for _, occupant := range space.occupants {
 		if occupant.state == Infectious {
 			filtration_efficiency := 0.0
-			if sim.is_mask_mandate && occupant.is_compliant {
+			if policy != nil && policy.IsMaskMandate && occupant.is_compliant {
 				filtration_efficiency = occupant.mask_filtration_efficiency
 			}
 
@@ -86,18 +84,12 @@ func (space *Space) update(sim *Simulation) {
 }
 
 func (space *Space) addAgent(sim *Simulation, agent *Agent) {
-	space.mu.Lock()
-	defer space.mu.Unlock()
-
 	space.occupants = append(space.occupants, agent)
 
 	space.dispatchOccupancyUpdateEvent(sim)
 }
 
 func (space *Space) removeAgent(sim *Simulation, agent *Agent) {
-	space.mu.Lock()
-	defer space.mu.Unlock()
-
 	for idx, candidate := range space.occupants {
 		if candidate.id == agent.id {
 			space.occupants = append(space.occupants[:idx], space.occupants[idx+1:]...)
@@ -110,14 +102,14 @@ func (space *Space) removeAgent(sim *Simulation, agent *Agent) {
 
 func (space *Space) dispatchOccupancyUpdateEvent(sim *Simulation) {
 	occupants := make([]struct {
-		Id    uuid.UUID
-		State AgentState
+		Id    uuid.UUID  `json:"id"`
+		State AgentState `json:"state"`
 	}, len(space.occupants))
 
 	for _, occupant := range space.occupants {
 		occupants = append(occupants, struct {
-			Id    uuid.UUID
-			State AgentState
+			Id    uuid.UUID  `json:"id"`
+			State AgentState `json:"state"`
 		}{
 			Id:    occupant.id,
 			State: occupant.state,
@@ -136,9 +128,14 @@ func (space *Space) dispatchOccupancyUpdateEvent(sim *Simulation) {
 	sim.logger.Log(event)
 }
 
-func (space *Space) state() (float64, float64, float64) {
-	space.mu.RLock()
-	defer space.mu.RUnlock()
+func (space *Space) state() (SpaceType, float64, float64, float64, *Policy) {
+	return space.type_, space.volume, space.air_change_rate, space.total_infectious_doses, space.resolvePolicy()
+}
 
-	return space.volume, space.air_change_rate, space.total_infectious_doses
+func (space *Space) resolvePolicy() (policy *Policy) {
+	if space.jurisdiction != nil {
+		policy = space.jurisdiction.resolvePolicy()
+	}
+
+	return
 }

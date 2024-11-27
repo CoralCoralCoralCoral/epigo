@@ -4,32 +4,35 @@ import (
 	"math"
 	"time"
 
+	"github.com/CoralCoralCoralCoral/simulation-engine/geo"
 	"github.com/CoralCoralCoralCoral/simulation-engine/logger"
 	"github.com/google/uuid"
 )
 
 type Simulation struct {
-	id              uuid.UUID
-	pathogen        Pathogen
-	start_time      time.Time
-	epoch           int64
-	time_step       int64
-	agents          []*Agent
-	households      []*Space
-	offices         []*Space
-	social_spaces   []*Space
-	is_mask_mandate bool
-	is_lockdown     bool
-	is_paused       bool
-	should_quit     bool
-	commands        chan Command
-	logger          logger.Logger
+	id            uuid.UUID
+	pathogen      Pathogen
+	start_time    time.Time
+	epoch         int64
+	time_step     int64
+	agents        []*Agent
+	jurisdictions []*Jurisdiction
+	households    []*Space
+	offices       []*Space
+	social_spaces []*Space
+	is_paused     bool
+	should_quit   bool
+	commands      chan Command
+	logger        logger.Logger
 }
 
 func NewSimulation(config Config) Simulation {
-	households := createHouseholds(config.NumAgents)
-	offices := createOffices(config.NumAgents)
-	social_spaces := createSocialSpaces(config.NumAgents / 100)
+	msoa_sampler := geo.NewMSOASampler()
+
+	jurisdictions := jurisdictionsFromFeatures()
+	households := createHouseholds(config.NumAgents, jurisdictions, msoa_sampler)
+	offices := createOffices(config.NumAgents, jurisdictions, msoa_sampler)
+	social_spaces := createSocialSpaces(config.NumAgents/100, jurisdictions, msoa_sampler)
 	agents := createAgents(config.NumAgents, households, offices, social_spaces)
 
 	logger := logger.NewLogger()
@@ -41,6 +44,7 @@ func NewSimulation(config Config) Simulation {
 		epoch:         0,
 		time_step:     config.TimeStep,
 		agents:        agents,
+		jurisdictions: jurisdictions,
 		households:    households,
 		offices:       offices,
 		social_spaces: social_spaces,
@@ -88,6 +92,10 @@ func (sim *Simulation) processCommand(command Command) {
 		sim.is_paused = true
 	case Resume:
 		sim.is_paused = false
+	case ApplyJurisdictionPolicy:
+		if payload, ok := command.Payload.(ApplyJurisdictionPolicyPayload); ok {
+			sim.applyJurisdictionPolicy(payload)
+		}
 	}
 
 	sim.logger.Log(logger.Event{
@@ -141,7 +149,16 @@ func (sim *Simulation) time() time.Time {
 	return sim.start_time.Add(time.Duration(sim.epoch*sim.time_step) * time.Millisecond)
 }
 
-func createHouseholds(total_capacity int64) []*Space {
+func (sim *Simulation) applyJurisdictionPolicy(payload ApplyJurisdictionPolicyPayload) {
+	for _, jur := range sim.jurisdictions {
+		if jur.id == payload.JurisdictionId {
+			jur.applyPolicy(&payload.Policy)
+			return
+		}
+	}
+}
+
+func createHouseholds(total_capacity int64, jurisdictions []*Jurisdiction, msoa_sampler *geo.MSOASampler) []*Space {
 	households := make([]*Space, 0)
 
 	for remaining_capacity := total_capacity; remaining_capacity > 0; {
@@ -152,6 +169,7 @@ func createHouseholds(total_capacity int64) []*Space {
 		}
 
 		household := newHousehold(capacity)
+		household.jurisdiction = sampleJurisdiction(jurisdictions, msoa_sampler)
 		households = append(households, &household)
 
 		remaining_capacity -= capacity
@@ -160,7 +178,7 @@ func createHouseholds(total_capacity int64) []*Space {
 	return households
 }
 
-func createOffices(total_capacity int64) []*Space {
+func createOffices(total_capacity int64, jurisdictions []*Jurisdiction, msoa_sampler *geo.MSOASampler) []*Space {
 	offices := make([]*Space, 0)
 
 	for remaining_capacity := total_capacity; remaining_capacity > 0; {
@@ -171,6 +189,7 @@ func createOffices(total_capacity int64) []*Space {
 		}
 
 		office := newOffice(capacity)
+		office.jurisdiction = sampleJurisdiction(jurisdictions, msoa_sampler)
 		offices = append(offices, &office)
 
 		remaining_capacity -= capacity
@@ -179,7 +198,7 @@ func createOffices(total_capacity int64) []*Space {
 	return offices
 }
 
-func createSocialSpaces(total_capacity int64) []*Space {
+func createSocialSpaces(total_capacity int64, jurisdictions []*Jurisdiction, msoa_sampler *geo.MSOASampler) []*Space {
 	social_spaces := make([]*Space, 0)
 
 	for remaining_capacity := total_capacity; remaining_capacity > 0; {
@@ -190,6 +209,7 @@ func createSocialSpaces(total_capacity int64) []*Space {
 		}
 
 		social_space := newSocialSpace(capacity)
+		social_space.jurisdiction = sampleJurisdiction(jurisdictions, msoa_sampler)
 		social_spaces = append(social_spaces, &social_space)
 
 		remaining_capacity -= capacity
