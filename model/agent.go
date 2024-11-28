@@ -28,6 +28,7 @@ type Agent struct {
 	infection_profile          *InfectionProfile
 	pulmonary_ventilation_rate float64
 	is_compliant               bool
+	seeks_treatment            bool
 	mask_filtration_efficiency float64
 }
 
@@ -37,6 +38,11 @@ func newAgent() Agent {
 	is_compliant := false
 	if sampleBernoulli(0.95) == 1 {
 		is_compliant = true
+	}
+
+	seeks_treatment := false
+	if sampleBernoulli(0.4) == 1 {
+		seeks_treatment = true
 	}
 
 	return Agent{
@@ -54,6 +60,7 @@ func newAgent() Agent {
 		pulmonary_ventilation_rate: sampleNormal(0.36, 0.01),
 		is_compliant:               is_compliant,
 		mask_filtration_efficiency: math.Max(sampleNormal(0.8, 0.15), 1),
+		seeks_treatment:            seeks_treatment,
 	}
 }
 
@@ -129,49 +136,66 @@ func (agent *Agent) updateLocation(sim *Simulation) {
 	}
 
 	// in the special case where the agent state transitioned to
-	// Hospitalized in this epoch, we set next_move_epoch to this epoch
+	// Hospitalized in this epoch, the agent moves to a healthcare space
+	// for a duration of hospitalization_period
 	if agent.state == Hospitalized && agent.state_change_epoch == sim.epoch {
-		agent.next_move_epoch = sim.epoch
+		agent.setLocation(
+			sim,
+			agent.healthcare_spaces[sampleUniform(0, int64(len(agent.healthcare_spaces)-1))],
+			agent.infection_profile.hospitalization_period,
+		)
+
+		return
+	}
+
+	// in the special case that the agent state transitioned to Infectious
+	// in this epoch and the agent is symptomatic and seeks treatment
+	// the agent moves to a healthcare space for a short duration
+	if agent.state == Infectious && !agent.infection_profile.is_asymptomatic && agent.seeks_treatment && agent.state_change_epoch == sim.epoch {
+		agent.setLocation(
+			sim,
+			agent.healthcare_spaces[sampleUniform(0, int64(len(agent.healthcare_spaces)-1))],
+			sampleNormal(45*60*1000, 15*60*1000),
+		)
+
+		return
 	}
 
 	if sim.epoch < agent.next_move_epoch {
 		return
 	}
 
-	var next_location *Space = nil
-	var next_location_duration float64 = 0
-
-	if agent.state == Hospitalized && agent.state_change_epoch == sim.epoch {
-		next_location = agent.healthcare_spaces[sampleUniform(0, int64(len(agent.healthcare_spaces)-1))]
-		next_location_duration = agent.infection_profile.hospitalization_period
-	} else {
-		location_type, _, _, _, policy := agent.location.state()
-		switch location_type {
-		case Household:
-			if policy != nil && policy.IsLockDown && agent.is_compliant {
-				break
-			}
-
-			if sampleBernoulli(0.55) == 1 {
-				next_location = agent.office
-				next_location_duration = sampleNormal(8*60*60*1000, 2*60*60*1000)
-			} else {
-				// select a social space at uniform random from the agent's list of social spaces.
-				// in reality this wouldn't be uniform random, rather mostly a function of proximity,
-				// which can be implemented once geospatial attributes are added to spaces
-				next_location = agent.social_spaces[sampleUniform(0, int64(len(agent.social_spaces)-1))]
-				next_location_duration = sampleNormal(45*60*1000, 15*60*1000)
-			}
-		case Office, SocialSpace, HealthCareSpace:
-			next_location = agent.household
-			next_location_duration = sampleNormal(12*60*60*1000, 4*60*60*1000)
-		default:
-			panic("this shouldn't happen")
+	location_type, _, _, _, policy := agent.location.state()
+	switch location_type {
+	case Household:
+		if policy != nil && policy.IsLockDown && agent.is_compliant {
+			break
 		}
-	}
 
-	if next_location != nil {
-		agent.setLocation(sim, next_location, next_location_duration)
+		if sampleBernoulli(0.55) == 1 {
+			agent.setLocation(
+				sim,
+				agent.office,
+				sampleNormal(8*60*60*1000, 2*60*60*1000),
+			)
+		} else {
+			// select a social space at uniform random from the agent's list of social spaces.
+			// in reality this wouldn't be uniform random, rather mostly a function of proximity,
+			// which can be implemented once geospatial attributes are added to spaces
+			agent.setLocation(
+				sim,
+				agent.social_spaces[sampleUniform(0, int64(len(agent.social_spaces)-1))],
+				sampleNormal(45*60*1000, 15*60*1000),
+			)
+		}
+	case Office, SocialSpace, HealthCareSpace:
+		agent.setLocation(
+			sim,
+			agent.household,
+			sampleNormal(12*60*60*1000, 4*60*60*1000),
+		)
+	default:
+		panic("this shouldn't happen")
 	}
 }
 

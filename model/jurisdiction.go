@@ -16,6 +16,10 @@ func newJurisdiction(id string, parent *Jurisdiction) *Jurisdiction {
 	jur := Jurisdiction{
 		id:     id,
 		parent: parent,
+		// temporarily use a default test policy of test everyone
+		policy: &Policy{
+			TestStrategy: TestEveryone,
+		},
 	}
 
 	return &jur

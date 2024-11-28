@@ -9,6 +9,7 @@ type Pathogen struct {
 	QuantaEmissionRate         [2]float64 `json:"quanta_emission_rate"`
 	HospitalizationProbability float64    `json:"hospitalization_probability"`
 	DeathProbability           float64    `json:"death_probability"` // conditional on hospitalized
+	AsymptomaticProbability    float64    `json:"asymptomatic_probability"`
 }
 
 type InfectionProfile struct {
@@ -20,6 +21,7 @@ type InfectionProfile struct {
 	quanta_emission_rate      float64
 	is_hospitalized           bool
 	is_dead                   bool // conditional on hospitalized
+	is_asymptomatic           bool
 }
 
 func (pathogen *Pathogen) generateInfectionProfile() *InfectionProfile {
@@ -40,6 +42,11 @@ func (pathogen *Pathogen) generateInfectionProfile() *InfectionProfile {
 		hospitalization_period = sampleNormal(pathogen.HospitalizationPeriod[0], pathogen.HospitalizationPeriod[1])
 	}
 
+	is_asymptomatic := false
+	if sampleBernoulli(pathogen.AsymptomaticProbability) == 1 {
+		is_asymptomatic = true
+	}
+
 	return &InfectionProfile{
 		incubation_period:         sampleNormal(pathogen.IncubationPeriod[0], pathogen.IncubationPeriod[1]),
 		recovery_period:           sampleNormal(pathogen.RecoveryPeriod[0], pathogen.RecoveryPeriod[1]),
@@ -49,5 +56,6 @@ func (pathogen *Pathogen) generateInfectionProfile() *InfectionProfile {
 		quanta_emission_rate:      sampleNormal(pathogen.QuantaEmissionRate[0], pathogen.QuantaEmissionRate[1]),
 		is_hospitalized:           is_hospitalized,
 		is_dead:                   is_dead,
+		is_asymptomatic:           is_asymptomatic,
 	}
 }
