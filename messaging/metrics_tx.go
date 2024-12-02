@@ -204,8 +204,8 @@ func (metrics *Metrics) print(date string) {
 	fmt.Print("\n")
 	fmt.Printf("	New tests:				%d\n", metrics.NewTests)
 	fmt.Printf("	New detected cases:			%d\n", metrics.NewPositiveTests)
-	fmt.Printf("	Tests performed:			%d\n", metrics.TotalTests)
-	fmt.Printf("	Detected cases:				%d\n", metrics.TotalPositiveTests)
+	fmt.Printf("	Total Tests performed:			%d\n", metrics.TotalTests)
+	fmt.Printf("	Total Detected cases:				%d\n", metrics.TotalPositiveTests)
 	fmt.Printf("	Test backlog:				%d\n", metrics.TestBacklog)
 	fmt.Printf("	Test capacity:				%d\n", metrics.TestCapacity)
 }
