@@ -36,12 +36,12 @@ type Metrics struct {
 	DeadPopulation         int `json:"dead_population"`
 
 	// metrics yielded by surveillance processes
-	NewTests         int `json:"new_tests"`
-	NewPositiveTests int `json:"new_positive_tests"`
-	Tests            int `json:"tests"`
-	PositiveTests    int `json:"positive_tests"`
-	TestBacklog      int `json:"test_backlog"`
-	TestCapacity     int `json:"test_capacity"`
+	NewTests           int `json:"new_tests"`
+	NewPositiveTests   int `json:"new_positive_tests"`
+	TotalTests         int `json:"total_tests"`
+	TotalPositiveTests int `json:"total_positive_tests"`
+	TestBacklog        int `json:"test_backlog"`
+	TestCapacity       int `json:"test_capacity"`
 }
 
 func NewMetricsTx(conn *amqp091.Connection, api_id, sim_id uuid.UUID) *MetricsTx {
@@ -100,8 +100,8 @@ func (metrics_map MetricsMap) applySpaceTestingUpdate(jur *model.Jurisdiction, p
 
 	metrics := metrics_map[jur_id]
 
-	metrics.Tests += int(payload.Negatives) + int(payload.Positives)
-	metrics.PositiveTests += int(payload.Positives)
+	metrics.TotalTests += int(payload.Negatives) + int(payload.Positives)
+	metrics.TotalPositiveTests += int(payload.Positives)
 	metrics.NewTests += int(payload.Negatives) + int(payload.Positives)
 	metrics.NewPositiveTests += int(payload.Positives)
 	metrics.TestBacklog += int(payload.Backlog)
@@ -204,8 +204,8 @@ func (metrics *Metrics) print(date string) {
 	fmt.Print("\n")
 	fmt.Printf("	New tests:				%d\n", metrics.NewTests)
 	fmt.Printf("	New detected cases:			%d\n", metrics.NewPositiveTests)
-	fmt.Printf("	Tests performed:			%d\n", metrics.Tests)
-	fmt.Printf("	Detected cases:				%d\n", metrics.PositiveTests)
+	fmt.Printf("	Tests performed:			%d\n", metrics.TotalTests)
+	fmt.Printf("	Detected cases:				%d\n", metrics.TotalPositiveTests)
 	fmt.Printf("	Test backlog:				%d\n", metrics.TestBacklog)
 	fmt.Printf("	Test capacity:				%d\n", metrics.TestCapacity)
 }
