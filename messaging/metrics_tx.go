@@ -34,6 +34,14 @@ type Metrics struct {
 	HospitalizedPopulation int `json:"hospitalized_population"`
 	ImmunePopulation       int `json:"immune_population"`
 	DeadPopulation         int `json:"dead_population"`
+
+	// metrics yielded by surveillance processes
+	NewTests         int `json:"new_tests"`
+	NewPositiveTests int `json:"new_positive_tests"`
+	Tests            int `json:"tests"`
+	PositiveTests    int `json:"positive_tests"`
+	TestBacklog      int `json:"test_backlog"`
+	TestCapacity     int `json:"test_capacity"`
 }
 
 func NewMetricsTx(conn *amqp091.Connection, api_id, sim_id uuid.UUID) *MetricsTx {
@@ -69,6 +77,10 @@ func (tx *MetricsTx) NewEventSubscriber() func(event *logger.Event) {
 			if payload, ok := event.Payload.(model.AgentStateUpdatePayload); ok {
 				metrics_map.applyAgentStateUpdate(payload.Jurisdiction(), &payload)
 			}
+		case model.SpaceTestingUpdate:
+			if payload, ok := event.Payload.(model.SpaceTestingUpdatePayload); ok {
+				metrics_map.applySpaceTestingUpdate(payload.Jurisdiction(), &payload)
+			}
 		default:
 			// ignore other types of events
 		}
@@ -77,6 +89,27 @@ func (tx *MetricsTx) NewEventSubscriber() func(event *logger.Event) {
 
 func (tx *MetricsTx) Close() {
 	tx.ch.Close()
+}
+
+func (metrics_map MetricsMap) applySpaceTestingUpdate(jur *model.Jurisdiction, payload *model.SpaceTestingUpdatePayload) {
+	jur_id := jur.Id()
+
+	if _, ok := metrics_map[jur_id]; !ok {
+		metrics_map[jur_id] = &Metrics{jurisdiction: jur}
+	}
+
+	metrics := metrics_map[jur_id]
+
+	metrics.Tests += int(payload.Negatives) + int(payload.Positives)
+	metrics.PositiveTests += int(payload.Positives)
+	metrics.NewTests += int(payload.Negatives) + int(payload.Positives)
+	metrics.NewPositiveTests += int(payload.Positives)
+	metrics.TestBacklog += int(payload.Backlog)
+	metrics.TestCapacity += int(payload.Capacity)
+
+	if parent := jur.Parent(); parent != nil {
+		metrics_map.applySpaceTestingUpdate(parent, payload)
+	}
 }
 
 func (metrics_map MetricsMap) applyAgentStateUpdate(jur *model.Jurisdiction, payload *model.AgentStateUpdatePayload) {
@@ -148,6 +181,11 @@ func (metrics *Metrics) reset() {
 	metrics.NewHospitalizations = 0
 	metrics.NewRecoveries = 0
 	metrics.NewDeaths = 0
+
+	metrics.NewTests = 0
+	metrics.NewPositiveTests = 0
+	metrics.TestBacklog = 0  // since the backlog is reported daily, reset it
+	metrics.TestCapacity = 0 // since the capacity is reported faily, reset it
 }
 
 func (metrics *Metrics) print(date string) {
@@ -161,6 +199,15 @@ func (metrics *Metrics) print(date string) {
 	fmt.Printf("	Hospitalized population:		%d\n", metrics.HospitalizedPopulation)
 	fmt.Printf("	Dead population:			%d\n", metrics.DeadPopulation)
 	fmt.Printf("	Immune population:			%d\n", metrics.ImmunePopulation)
+
+	// surveillance related metrics
+	fmt.Print("\n")
+	fmt.Printf("	New tests:				%d\n", metrics.NewTests)
+	fmt.Printf("	New detected cases:			%d\n", metrics.NewPositiveTests)
+	fmt.Printf("	Tests performed:			%d\n", metrics.Tests)
+	fmt.Printf("	Detected cases:				%d\n", metrics.PositiveTests)
+	fmt.Printf("	Test backlog:				%d\n", metrics.TestBacklog)
+	fmt.Printf("	Test capacity:				%d\n", metrics.TestCapacity)
 }
 
 func (tx *MetricsTx) send(metrics_map MetricsMap) {

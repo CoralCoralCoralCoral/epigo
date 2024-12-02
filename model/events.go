@@ -12,6 +12,7 @@ const CommandProcessed logger.EventType = "command_processed"
 const AgentStateUpdate logger.EventType = "agent_state_update"
 const AgentLocationUpdate logger.EventType = "agent_location_update"
 const SpaceOccupancyUpdate logger.EventType = "space_occupancy_update"
+const SpaceTestingUpdate logger.EventType = "space_testing_udpate"
 
 type EpochEndPayload struct {
 	Epoch    int64     `json:"epoch"`
@@ -51,6 +52,21 @@ type SpaceOccupancyUpdatePayload struct {
 	} `json:"occupants"`
 }
 
+type SpaceTestingUpdatePayload struct {
+	Epoch     int64 `json:"epoch"`
+	Positives int64 `json:"positives"`
+	Negatives int64 `json:"negatives"`
+	Backlog   int64 `json:"backlog"`
+	Capacity  int64 `json:"capacity"`
+
+	// needed for metrics aggregation. not public and therefore not a json serialized field
+	jurisdiction *Jurisdiction
+}
+
 func (payload *AgentStateUpdatePayload) Jurisdiction() *Jurisdiction {
+	return payload.jurisdiction
+}
+
+func (payload *SpaceTestingUpdatePayload) Jurisdiction() *Jurisdiction {
 	return payload.jurisdiction
 }
