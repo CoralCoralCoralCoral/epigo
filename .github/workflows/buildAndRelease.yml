@@ -35,7 +35,7 @@ jobs:
 
               with:
                   username: ${{ github.actor }} # GitHub username
-                  password: ${{ secrets.GH_TOKEN }} # Use the PAT for authentication
+                  password: ${{ secrets.BUILD_RELEASE_TOKEN }} # Use the PAT for authentication
 
             # Step 4: Build Docker image
 
@@ -64,5 +64,5 @@ jobs:
                   git push origin "v${{ github.sha }}"
 
               env:
-                  GITHUB_TOKEN: ${{ secrets.GH_TOKEN }} # Use the PAT token for pushing
+                  GITHUB_TOKEN: ${{ secrets.BUILD_RELEASE_TOKEN }} # Use the PAT token for pushing
 
