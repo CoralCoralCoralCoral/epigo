@@ -1,0 +1,68 @@
+name: Build and Push Docker Image
+
+on:
+    push:
+        branches:
+            - main # Trigger the action on push to the main branch
+
+jobs:
+    build_and_push:
+        runs-on: ubuntu-latest
+
+        steps:
+            # Step 1: Checkout the repository
+
+            - name: Checkout code
+
+              uses: actions/checkout@v3
+
+              with:
+                  # Ensure that you fetch all the tags for the repository
+
+                  fetch-depth: 0 # Fetch full history to get all tags
+
+            # Step 2: Set up Docker
+
+            - name: Set up Docker Buildx
+
+              uses: docker/setup-buildx-action@v2
+
+            # Step 3: Log in to Docker Hub or GitHub Packages (if applicable)
+
+            - name: Log in to GitHub Packages (GHCR)
+
+              uses: docker/login-action@v2
+
+              with:
+                  username: ${{ github.actor }} # GitHub username
+                  password: ${{ secrets.GH_TOKEN }} # Use the PAT for authentication
+
+            # Step 4: Build Docker image
+
+            - name: Build Docker image
+
+              run: |
+
+                  docker build -t ghcr.io/${{ github.repository_owner }}/my-repository:latest .
+
+            # Step 5: Push Docker image
+
+            - name: Push Docker image to GitHub Packages (GHCR)
+
+              run: |
+
+                  docker push ghcr.io/${{ github.repository_owner }}/my-repository:latest
+
+            # Step 6: Tag the commit (if pushing tags)
+
+            - name: Create tag and push
+
+              run: |
+
+                  git tag "v${{ github.sha }}"
+
+                  git push origin "v${{ github.sha }}"
+
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GH_TOKEN }} # Use the PAT token for pushing
+
