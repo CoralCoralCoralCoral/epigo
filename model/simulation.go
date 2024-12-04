@@ -1,6 +1,8 @@
 package model
 
 import (
+	"encoding/json"
+	"log"
 	"math"
 	"time"
 
@@ -88,6 +90,8 @@ func (sim *Simulation) Id() uuid.UUID {
 }
 
 func (sim *Simulation) processCommand(command Command) {
+	log.Printf("received command of type: %s\n", command.Type)
+
 	switch command.Type {
 	case Quit:
 		sim.should_quit = true
@@ -97,7 +101,13 @@ func (sim *Simulation) processCommand(command Command) {
 		sim.is_paused = false
 	case ApplyJurisdictionPolicy:
 		if payload, ok := command.Payload.(ApplyJurisdictionPolicyPayload); ok {
+			// debugging
+			log.Println("applying a valid policy to jurisdiction")
+
 			sim.applyJurisdictionPolicy(payload)
+		} else {
+			// debugging
+			log.Println("apply jurisdiction policy payload was not in the expected format")
 		}
 	}
 
@@ -160,6 +170,15 @@ func (sim *Simulation) applyJurisdictionPolicy(payload ApplyJurisdictionPolicyPa
 	for _, jur := range sim.jurisdictions {
 		if jur.id == payload.JurisdictionId {
 			jur.applyPolicy(payload.Policy)
+
+			// debugging
+			log.Println("policy applied to jurisdiction")
+			applied_policy_json, err := json.Marshal(payload.Policy)
+			if err != nil {
+				log.Println("couldn't serialize applied policy")
+			}
+			log.Println(string(applied_policy_json))
+
 			return
 		}
 	}
