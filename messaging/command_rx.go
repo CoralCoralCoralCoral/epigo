@@ -75,7 +75,23 @@ func NewCommandRx(conn *amqp091.Connection, sim_id uuid.UUID) *CommandRx {
 func (rx *CommandRx) OnReceive(handler func(command model.Command)) {
 	for msg := range rx.messages {
 		var command model.Command
+		command.Payload = new(map[string]interface{})
+
 		err := json.Unmarshal(msg.Body, &command)
+
+		if command.Type == model.ApplyJurisdictionPolicy {
+			payload_bytes, err := json.Marshal(command.Payload)
+
+			if err != nil {
+				log.Println("error marshalling payload map into bytes")
+			}
+
+			var policy_payload model.ApplyJurisdictionPolicyPayload
+			err = json.Unmarshal(payload_bytes, &policy_payload)
+			if err != nil {
+				log.Println("error unmarshalling payload bytes into policy payload")
+			}
+		}
 
 		if err != nil {
 			log.Println("failed to parse command message")

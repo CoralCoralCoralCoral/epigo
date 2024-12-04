@@ -100,6 +100,15 @@ func (sim *Simulation) processCommand(command Command) {
 	case Resume:
 		sim.is_paused = false
 	case ApplyJurisdictionPolicy:
+		// payload := new(ApplyJurisdictionPolicyPayload)
+		// if err := json.Unmarshal(command.Payload, &payload); err != nil {
+		// 	log.Println("apply jurisdiction policy payload was not in the expected format")
+		// 	return
+		// }
+
+		// log.Println("applying a valid policy to jurisdiction")
+		// sim.applyJurisdictionPolicy(*payload)
+
 		if payload, ok := command.Payload.(ApplyJurisdictionPolicyPayload); ok {
 			// debugging
 			log.Println("applying a valid policy to jurisdiction")
@@ -169,7 +178,7 @@ func (sim *Simulation) time() time.Time {
 func (sim *Simulation) applyJurisdictionPolicy(payload ApplyJurisdictionPolicyPayload) {
 	for _, jur := range sim.jurisdictions {
 		if jur.id == payload.JurisdictionId {
-			jur.applyPolicy(payload.Policy)
+			jur.applyPolicy(&payload.Policy)
 
 			// debugging
 			log.Println("policy applied to jurisdiction")
