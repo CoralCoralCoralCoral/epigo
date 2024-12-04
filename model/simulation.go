@@ -159,7 +159,7 @@ func (sim *Simulation) time() time.Time {
 func (sim *Simulation) applyJurisdictionPolicy(payload ApplyJurisdictionPolicyPayload) {
 	for _, jur := range sim.jurisdictions {
 		if jur.id == payload.JurisdictionId {
-			jur.applyPolicy(&payload.Policy)
+			jur.applyPolicy(payload.Policy)
 			return
 		}
 	}

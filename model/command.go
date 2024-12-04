@@ -13,6 +13,6 @@ type Command struct {
 type CommandType string
 
 type ApplyJurisdictionPolicyPayload struct {
-	JurisdictionId string `json:"jurisdiction_id"`
-	Policy         Policy `json:"policy"`
+	JurisdictionId string  `json:"jurisdiction_id"`
+	Policy         *Policy `json:"policy"`
 }
