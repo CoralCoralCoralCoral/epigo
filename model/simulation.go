@@ -96,8 +96,8 @@ func (sim *Simulation) processCommand(command Command) {
 	case Resume:
 		sim.is_paused = false
 	case ApplyJurisdictionPolicy:
-		if payload, ok := command.Payload.(ApplyJurisdictionPolicyPayload); ok {
-			sim.applyJurisdictionPolicy(payload)
+		if payload, ok := command.Payload.(*ApplyJurisdictionPolicyPayload); ok {
+			sim.applyJurisdictionPolicy(*payload)
 		}
 	}
 
