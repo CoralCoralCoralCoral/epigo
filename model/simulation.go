@@ -1,6 +1,7 @@
 package model
 
 import (
+	"log"
 	"math"
 	"time"
 
@@ -37,7 +38,15 @@ func NewSimulation(config Config) Simulation {
 	healthcare_spaces := createHealthCareSpaces(config.NumAgents/1000*5, jurisdictions, msoa_sampler)
 	agents := createAgents(config.NumAgents, households, offices, social_spaces, healthcare_spaces)
 
-	logger := logger.NewLogger()
+	logger_ := logger.NewLogger()
+
+	// attach an internal logger to log processed commands for debugging
+	logger_.Subscribe(func(event *logger.Event) {
+		switch event.Type {
+		case CommandProcessed:
+			log.Printf("processed command of type %s", event.Payload.(CommandProcessedPayload).Command.Type)
+		}
+	})
 
 	return Simulation{
 		id:                config.Id,
@@ -52,7 +61,7 @@ func NewSimulation(config Config) Simulation {
 		social_spaces:     social_spaces,
 		healthcare_spaces: healthcare_spaces,
 		commands:          make(chan Command),
-		logger:            logger,
+		logger:            logger_,
 	}
 }
 
