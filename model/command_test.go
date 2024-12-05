@@ -58,3 +58,21 @@ func TestSerializeAndDeserializeCommandsWithNoPayload(t *testing.T) {
 		t.Fatalf("Test failed because the unmarshalled command is not of the expected type. Expected %s, got %s", command.Type, deserializedCommand.Type)
 	}
 }
+
+func TestDeserializeCommandWithNoPayloadFromJsonString(t *testing.T) {
+	commandBytes := []byte(`
+		{
+			"type": "pause",
+		}
+	`)
+
+	var command Command
+	err := json.Unmarshal(commandBytes, &command)
+	if err != nil {
+		t.Fatalf("Test failed due to the following Unmarshalling error: %s", err)
+	}
+
+	if command.Type != Pause {
+		t.Fatalf("Test failed because the unmarshalled command is not of the expected type. Expected %s, got %s", Quit, command.Type)
+	}
+}
