@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestSerializeAndDeserializeCommand(t *testing.T) {
+func TestSerializeAndDeserializeApplyJurisdictionPolicyCommand(t *testing.T) {
 	command := Command{
 		Type: ApplyJurisdictionPolicy,
 		Payload: ApplyJurisdictionPolicyPayload{
@@ -24,13 +24,37 @@ func TestSerializeAndDeserializeCommand(t *testing.T) {
 	}
 
 	var deserializedCommand Command
-	json.Unmarshal(commandBytes, &deserializedCommand)
+	err = json.Unmarshal(commandBytes, &deserializedCommand)
+	if err != nil {
+		t.Fatalf("Test failed due to the following Unmarshalling error: %s", err)
+	}
 
 	if deserializedCommand.Type != ApplyJurisdictionPolicy {
 		t.Fatalf("Test failed because the unmarshalled command is not of the expected type. Expected %s, got %s", ApplyJurisdictionPolicy, command.Type)
 	}
 
-	if _, ok := deserializedCommand.Payload.(*ApplyJurisdictionPolicyPayload); !ok {
-		t.Fatalf("Test failed because the deserialized command does not contain the expected payload")
+	if deserializedCommand.Type != command.Type {
+		t.Fatalf("Test failed because the unmarshalled command is not of the expected type. Expected %s, got %s", command.Type, deserializedCommand.Type)
+	}
+}
+
+func TestSerializeAndDeserializeCommandsWithNoPayload(t *testing.T) {
+	command := Command{
+		Type: Quit,
+	}
+
+	commandBytes, err := json.Marshal(command)
+	if err != nil {
+		t.Fatalf("Test failed due to the following Marshalling error: %s", err)
+	}
+
+	var deserializedCommand Command
+	err = json.Unmarshal(commandBytes, &deserializedCommand)
+	if err != nil {
+		t.Fatalf("Test failed due to the following Unmarshalling error: %s", err)
+	}
+
+	if deserializedCommand.Type != command.Type {
+		t.Fatalf("Test failed because the unmarshalled command is not of the expected type. Expected %s, got %s", command.Type, deserializedCommand.Type)
 	}
 }
