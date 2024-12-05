@@ -1,0 +1,31 @@
+name: Run Unit Tests
+
+# Trigger the workflow on pull requests
+on:
+    pull_request:
+        branches:
+            - main
+
+jobs:
+    test:
+        name: Run Go Unit Tests
+        runs-on: ubuntu-latest
+
+        steps:
+            # Step 1: Checkout the repository
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            # Step 2: Set up Go environment
+            - name: Set up Go
+              uses: actions/setup-go@v4
+              with:
+                  go-version: "1.21" # Specify the Go version you want to use
+
+            # Step 3: Install dependencies
+            - name: Install dependencies
+              run: go mod tidy
+
+            # Step 4: Run unit tests
+            - name: Run tests
+              run: go test ./... -v
