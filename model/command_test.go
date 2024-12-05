@@ -62,7 +62,7 @@ func TestSerializeAndDeserializeCommandsWithNoPayload(t *testing.T) {
 func TestDeserializeCommandWithNoPayloadFromJsonString(t *testing.T) {
 	commandBytes := []byte(`
 		{
-			"type": "pause",
+			"type": "pause"
 		}
 	`)
 
