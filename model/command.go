@@ -42,7 +42,7 @@ func (c *Command) UnmarshalJSON(data []byte) error {
 	case ApplyJurisdictionPolicy:
 		payload = &ApplyJurisdictionPolicyPayload{}
 	default:
-		// noop for command types that do not include a payload
+		payload = &map[string]interface{}{}
 	}
 
 	if err := json.Unmarshal(intermediate.Payload, payload); err != nil {
