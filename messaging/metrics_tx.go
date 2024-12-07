@@ -70,7 +70,7 @@ func (tx *MetricsTx) NewEventSubscriber() func(event *logger.Event) {
 				}
 
 				tx.send(metrics_map)
-				metrics_map.print(payload.Time.Format("02-01-2006"))
+				// metrics_map.print(payload.Time.Format("02-01-2006"))
 				metrics_map.reset()
 			}
 		case model.AgentStateUpdate:
