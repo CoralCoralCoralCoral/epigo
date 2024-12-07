@@ -3,6 +3,8 @@ package model
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSerializeAndDeserializeApplyJurisdictionPolicyCommand(t *testing.T) {
@@ -33,9 +35,7 @@ func TestSerializeAndDeserializeApplyJurisdictionPolicyCommand(t *testing.T) {
 		t.Fatalf("Test failed because the unmarshalled command is not of the expected type. Expected %s, got %s", ApplyJurisdictionPolicy, command.Type)
 	}
 
-	if deserializedCommand.Type != command.Type {
-		t.Fatalf("Test failed because the unmarshalled command is not of the expected type. Expected %s, got %s", command.Type, deserializedCommand.Type)
-	}
+	assert.Equal(t, command.Type, deserializedCommand.Type, "Expected the unmarshalled command to have the same type as the original")
 }
 
 func TestSerializeAndDeserializeCommandsWithNoPayload(t *testing.T) {
@@ -54,9 +54,7 @@ func TestSerializeAndDeserializeCommandsWithNoPayload(t *testing.T) {
 		t.Fatalf("Test failed due to the following Unmarshalling error: %s", err)
 	}
 
-	if deserializedCommand.Type != command.Type {
-		t.Fatalf("Test failed because the unmarshalled command is not of the expected type. Expected %s, got %s", command.Type, deserializedCommand.Type)
-	}
+	assert.Equal(t, command.Type, deserializedCommand.Type, "Expected the unmarshalled command to have the same type as the original")
 }
 
 func TestDeserializeCommandWithNoPayloadFromJsonString(t *testing.T) {
@@ -72,7 +70,5 @@ func TestDeserializeCommandWithNoPayloadFromJsonString(t *testing.T) {
 		t.Fatalf("Test failed due to the following Unmarshalling error: %s", err)
 	}
 
-	if command.Type != Pause {
-		t.Fatalf("Test failed because the unmarshalled command is not of the expected type. Expected %s, got %s", Quit, command.Type)
-	}
+	assert.Equal(t, Pause, command.Type, "Expected the unmarshalled command to have the same type as the original")
 }
