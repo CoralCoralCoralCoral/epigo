@@ -19,11 +19,13 @@ type MetricsTx struct {
 	ch     *amqp091.Channel
 }
 
-type MetricsMap map[string]*Metrics
+type JuristictionMetrics map[string]*Metrics
 
 type Metrics struct {
 	// not a serialized field
 	jurisdiction *model.Jurisdiction
+
+	Day int `json:"day"`
 
 	NewInfections          int `json:"new_infections"`
 	NewHospitalizations    int `json:"new_hospitalizations"`
@@ -59,7 +61,7 @@ func NewMetricsTx(conn *amqp091.Connection, api_id, sim_id uuid.UUID) *MetricsTx
 }
 
 func (tx *MetricsTx) NewEventSubscriber() func(event *logger.Event) {
-	metrics_map := make(MetricsMap)
+	juristiction_metrics := make(JuristictionMetrics)
 
 	return func(event *logger.Event) {
 		switch event.Type {
@@ -69,17 +71,17 @@ func (tx *MetricsTx) NewEventSubscriber() func(event *logger.Event) {
 					return
 				}
 
-				tx.send(metrics_map)
-				// metrics_map.print(payload.Time.Format("02-01-2006"))
-				metrics_map.reset()
+				tx.send(juristiction_metrics)
+				// juristiction_metrics.print(payload.Time.Format("02-01-2006"))
+				juristiction_metrics.reset()
 			}
 		case model.AgentStateUpdate:
 			if payload, ok := event.Payload.(model.AgentStateUpdatePayload); ok {
-				metrics_map.applyAgentStateUpdate(payload.Jurisdiction(), &payload)
+				juristiction_metrics.applyAgentStateUpdate(payload.Jurisdiction(), &payload)
 			}
 		case model.SpaceTestingUpdate:
 			if payload, ok := event.Payload.(model.SpaceTestingUpdatePayload); ok {
-				metrics_map.applySpaceTestingUpdate(payload.Jurisdiction(), &payload)
+				juristiction_metrics.applySpaceTestingUpdate(payload.Jurisdiction(), &payload)
 			}
 		default:
 			// ignore other types of events
@@ -91,14 +93,14 @@ func (tx *MetricsTx) Close() {
 	tx.ch.Close()
 }
 
-func (metrics_map MetricsMap) applySpaceTestingUpdate(jur *model.Jurisdiction, payload *model.SpaceTestingUpdatePayload) {
+func (juristiction_metrics JuristictionMetrics) applySpaceTestingUpdate(jur *model.Jurisdiction, payload *model.SpaceTestingUpdatePayload) {
 	jur_id := jur.Id()
 
-	if _, ok := metrics_map[jur_id]; !ok {
-		metrics_map[jur_id] = &Metrics{jurisdiction: jur}
+	if _, ok := juristiction_metrics[jur_id]; !ok {
+		juristiction_metrics[jur_id] = &Metrics{jurisdiction: jur, Day: 1}
 	}
 
-	metrics := metrics_map[jur_id]
+	metrics := juristiction_metrics[jur_id]
 
 	metrics.TotalTests += int(payload.Negatives) + int(payload.Positives)
 	metrics.TotalPositiveTests += int(payload.Positives)
@@ -108,18 +110,18 @@ func (metrics_map MetricsMap) applySpaceTestingUpdate(jur *model.Jurisdiction, p
 	metrics.TestCapacity += int(payload.Capacity)
 
 	if parent := jur.Parent(); parent != nil {
-		metrics_map.applySpaceTestingUpdate(parent, payload)
+		juristiction_metrics.applySpaceTestingUpdate(parent, payload)
 	}
 }
 
-func (metrics_map MetricsMap) applyAgentStateUpdate(jur *model.Jurisdiction, payload *model.AgentStateUpdatePayload) {
+func (juristiction_metrics JuristictionMetrics) applyAgentStateUpdate(jur *model.Jurisdiction, payload *model.AgentStateUpdatePayload) {
 	jur_id := jur.Id()
 
-	if _, ok := metrics_map[jur_id]; !ok {
-		metrics_map[jur_id] = &Metrics{jurisdiction: jur}
+	if _, ok := juristiction_metrics[jur_id]; !ok {
+		juristiction_metrics[jur_id] = &Metrics{jurisdiction: jur, Day: 1}
 	}
 
-	metrics := metrics_map[jur_id]
+	metrics := juristiction_metrics[jur_id]
 
 	switch payload.State {
 	case model.Infected:
@@ -160,23 +162,25 @@ func (metrics_map MetricsMap) applyAgentStateUpdate(jur *model.Jurisdiction, pay
 	}
 
 	if parent := jur.Parent(); parent != nil {
-		metrics_map.applyAgentStateUpdate(parent, payload)
+		juristiction_metrics.applyAgentStateUpdate(parent, payload)
 	}
 }
 
-func (metrics_map MetricsMap) reset() {
-	for _, metrics := range metrics_map {
+func (juristiction_metrics JuristictionMetrics) reset() {
+	for _, metrics := range juristiction_metrics {
 		metrics.reset()
 	}
 }
 
-func (metrics_map MetricsMap) print(date string) {
+func (juristiction_metrics JuristictionMetrics) print(date string) {
 	fmt.Print("\033[H\033[2J")
 
-	metrics_map["GLOBAL"].print(date)
+	juristiction_metrics["GLOBAL"].print(date)
 }
 
 func (metrics *Metrics) reset() {
+	metrics.Day += 1
+
 	metrics.NewInfections = 0
 	metrics.NewHospitalizations = 0
 	metrics.NewRecoveries = 0
@@ -210,10 +214,10 @@ func (metrics *Metrics) print(date string) {
 	fmt.Printf("	Test capacity:				%d\n", metrics.TestCapacity)
 }
 
-func (tx *MetricsTx) send(metrics_map MetricsMap) {
+func (tx *MetricsTx) send(juristiction_metrics JuristictionMetrics) {
 	routing_key := fmt.Sprintf("%s.%s", tx.api_id, tx.sim_id)
 
-	body, err := json.Marshal(metrics_map)
+	body, err := json.Marshal(juristiction_metrics)
 	failOnError(err, "failed to json serialize event")
 
 	err = tx.ch.PublishWithContext(context.Background(),
