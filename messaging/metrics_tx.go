@@ -63,12 +63,19 @@ func NewMetricsTx(conn *amqp091.Connection, api_id, sim_id uuid.UUID) *MetricsTx
 func (tx *MetricsTx) NewEventSubscriber() func(event *logger.Event) {
 	juristiction_metrics := make(JuristictionMetrics)
 
+	day := 0
+
 	return func(event *logger.Event) {
 		switch event.Type {
 		case model.EpochEnd:
 			if payload, ok := event.Payload.(model.EpochEndPayload); ok {
 				if (payload.Epoch*payload.TimeStep)%(24*60*60*1000) != 0 {
 					return
+				}
+
+				day += 1
+				for _, metrics := range juristiction_metrics {
+					metrics.Day = day
 				}
 
 				tx.send(juristiction_metrics)
@@ -97,7 +104,7 @@ func (juristiction_metrics JuristictionMetrics) applySpaceTestingUpdate(jur *mod
 	jur_id := jur.Id()
 
 	if _, ok := juristiction_metrics[jur_id]; !ok {
-		juristiction_metrics[jur_id] = &Metrics{jurisdiction: jur, Day: 1}
+		juristiction_metrics[jur_id] = &Metrics{jurisdiction: jur}
 	}
 
 	metrics := juristiction_metrics[jur_id]
@@ -118,7 +125,7 @@ func (juristiction_metrics JuristictionMetrics) applyAgentStateUpdate(jur *model
 	jur_id := jur.Id()
 
 	if _, ok := juristiction_metrics[jur_id]; !ok {
-		juristiction_metrics[jur_id] = &Metrics{jurisdiction: jur, Day: 1}
+		juristiction_metrics[jur_id] = &Metrics{jurisdiction: jur}
 	}
 
 	metrics := juristiction_metrics[jur_id]
@@ -179,8 +186,6 @@ func (juristiction_metrics JuristictionMetrics) print(date string) {
 }
 
 func (metrics *Metrics) reset() {
-	metrics.Day += 1
-
 	metrics.NewInfections = 0
 	metrics.NewHospitalizations = 0
 	metrics.NewRecoveries = 0
