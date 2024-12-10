@@ -158,11 +158,18 @@ func (space *Space) removeAgent(sim *Simulation, agent *Agent) {
 }
 
 func (space *Space) dispatchTestingUpdateEvent(sim *Simulation) {
+	test_capacity := space.test_capacity
+	if policy := space.resolvePolicy(); policy != nil {
+		if policy.TestCapacityMultiplier > 0 {
+			test_capacity = int64(math.Ceil(float64(test_capacity) * policy.TestCapacityMultiplier))
+		}
+	}
+
 	positives := 0
 	negatives := 0
 
 loop:
-	for i := 0; i < int(space.test_capacity); i++ {
+	for i := 0; i < int(test_capacity); i++ {
 		select {
 		case result := <-space.test_backlog:
 			if result {
@@ -184,7 +191,7 @@ loop:
 			Positives: int64(positives),
 			Negatives: int64(negatives),
 			Backlog:   int64(backlog),
-			Capacity:  space.test_capacity,
+			Capacity:  test_capacity,
 
 			jurisdiction: space.jurisdiction,
 		},
