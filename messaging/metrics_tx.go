@@ -180,7 +180,7 @@ func (juristiction_metrics JuristictionMetrics) reset() {
 }
 
 func (juristiction_metrics JuristictionMetrics) print(date string) {
-	fmt.Print("\033[H\033[2J")
+	// fmt.Print("\033[H\033[2J")
 
 	juristiction_metrics["GLOBAL"].print(date)
 }
