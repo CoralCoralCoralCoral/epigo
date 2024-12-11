@@ -3,16 +3,17 @@ package model
 import "github.com/CoralCoralCoralCoral/simulation-engine/geo"
 
 type Jurisdiction struct {
-	id     string
-	parent *Jurisdiction
-	policy *Policy
+	id      string
+	parent  *Jurisdiction
+	policy  *Policy
+	feature *geo.Feature
 }
 
 func (jur *Jurisdiction) Parent() *Jurisdiction {
 	return jur.parent
 }
 
-func newJurisdiction(id string, parent *Jurisdiction) *Jurisdiction {
+func newJurisdiction(id string, parent *Jurisdiction, feature *geo.Feature) *Jurisdiction {
 	jur := Jurisdiction{
 		id:     id,
 		parent: parent,
@@ -20,6 +21,7 @@ func newJurisdiction(id string, parent *Jurisdiction) *Jurisdiction {
 		policy: &Policy{
 			TestStrategy: TestEveryone,
 		},
+		feature: feature,
 	}
 
 	return &jur
@@ -33,7 +35,7 @@ func jurisdictionsFromFeatures() []*Jurisdiction {
 
 	// create jurisdictions
 	for _, feature := range features {
-		jurisdictions = append(jurisdictions, newJurisdiction(feature.Code(), nil))
+		jurisdictions = append(jurisdictions, newJurisdiction(feature.Code(), nil, feature))
 	}
 
 	// assign parents
@@ -55,7 +57,7 @@ func jurisdictionsFromFeatures() []*Jurisdiction {
 	}
 
 	// assign the highest level jurisdictions (orphan jurisdictions to the GLOBAL jurisdiction)
-	global_jur := newJurisdiction("GLOBAL", nil)
+	global_jur := newJurisdiction("GLOBAL", nil, nil)
 	for _, jur := range jurisdictions {
 		if jur.parent == nil {
 			jur.parent = global_jur

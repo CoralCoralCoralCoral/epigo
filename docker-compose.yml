@@ -1,0 +1,34 @@
+services:
+  rabbitmq:
+    image: 'rabbitmq:4-management'
+    environment:
+      - 'RABBITMQ_DEFAULT_PASS=guest'
+      - 'RABBITMQ_DEFAULT_USER=guest'
+    expose:
+      - "5672"
+    ports:
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  api-server:
+    image: ghcr.io/coralcoralcoralcoral/api-server:main
+    # image: api-server
+    environment:
+      - 'SPRING_RABBITMQ_HOST=rabbitmq'
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - 8080:8080
+  sim-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - 'RMQ_URI=amqp://guest:guest@rabbitmq:5672/'
+    depends_on:
+      rabbitmq:
+        condition: service_healthy

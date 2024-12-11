@@ -3,11 +3,14 @@ package model
 import (
 	"log"
 	"math"
+	"math/rand"
 	"time"
 
 	"github.com/CoralCoralCoralCoral/simulation-engine/geo"
 	"github.com/CoralCoralCoralCoral/simulation-engine/logger"
 	"github.com/google/uuid"
+	"github.com/twpayne/go-geom"
+	"github.com/twpayne/go-geom/xy"
 )
 
 type Simulation struct {
@@ -257,28 +260,14 @@ func createHealthCareSpaces(total_capacity int64, jurisdictions []*Jurisdiction,
 func createAgents(count int64, households, offices []*Space, social_spaces []*Space, healthcare_spaces []*Space) []*Agent {
 	agents := make([]*Agent, count)
 
-	for i := 0; i < int(count); i++ {
-		agent := newAgent()
+	office_sampler := distanceWeighted(offices)
+	social_space_sampler := distanceWeighted(social_spaces)
+	healthcare_space_sampler := distanceWeighted(healthcare_spaces)
 
-		num_social_spaces := int(math.Max(1, math.Floor(sampleNormal(5, 4))))
-		for i := 0; i < num_social_spaces; i++ {
-			agent.social_spaces = append(agent.social_spaces, social_spaces[sampleUniform(0, int64(len(social_spaces)-1))])
-		}
-
-		num_healthcare_spaces := int(math.Max(1, math.Floor(sampleNormal(5, 4))))
-		for i := 0; i < num_healthcare_spaces; i++ {
-			agent.healthcare_spaces = append(agent.healthcare_spaces, healthcare_spaces[sampleUniform(0, int64(len(healthcare_spaces)-1))])
-		}
-
-		agents[i] = &agent
-	}
-
-	// allocate agents to households
 	household_idx, household_allocated_capacity := 0, 0
-	for _, agent := range agents {
+	for i := 0; i < int(count); i++ {
 		household := households[household_idx]
-		agent.household = household
-		agent.location = household
+		agents[i] = createAgent(household, office_sampler, social_space_sampler, healthcare_space_sampler)
 
 		household_allocated_capacity += 1
 		if household_allocated_capacity == int(household.capacity) {
@@ -287,18 +276,98 @@ func createAgents(count int64, households, offices []*Space, social_spaces []*Sp
 		}
 	}
 
-	// allocate agents to offices
-	office_idx, office_allocated_capacity := 0, 0
-	for _, agent := range agents {
-		office := offices[office_idx]
-		agent.office = office
+	return agents
+}
 
-		office_allocated_capacity += 1
-		if office_allocated_capacity == int(office.capacity) {
-			office_idx += 1
-			office_allocated_capacity = 0
+func createAgent(household *Space, office_sampler, social_space_sampler, healthcare_space_sampler func(space *Space) *Space) *Agent {
+	agent := newAgent()
+	agent.household = household
+	agent.location = household
+
+	// create distance matrix from agent to offices
+	agent.office = office_sampler(agent.household)
+
+	// create distance matrix from agent to social spaces
+	num_social_spaces := int(math.Max(1, math.Floor(sampleNormal(5, 4))))
+	for i := 0; i < num_social_spaces; i++ {
+		agent.social_spaces = append(agent.social_spaces, social_space_sampler(agent.household))
+	}
+
+	// create distance matrix from agent to offices
+	num_healthcare_spaces := int(math.Max(1, math.Floor(sampleNormal(5, 4))))
+	for i := 0; i < num_healthcare_spaces; i++ {
+		agent.healthcare_spaces = append(agent.healthcare_spaces, healthcare_space_sampler(agent.household))
+	}
+
+	return &agent
+}
+
+func distanceWeighted(spaces []*Space) func(space *Space) *Space {
+	weights_map := make(map[string][]float64)
+
+	return func(space *Space) *Space {
+		if weights, ok := weights_map[space.jurisdiction.id]; ok {
+			return randomWeightedSample(spaces, weights)
+		}
+
+		weights := calculateWeights(spaces, space)
+		weights_map[space.jurisdiction.id] = weights
+
+		return randomWeightedSample(spaces, weights)
+	}
+}
+
+// randomWeightedSample selects an space based on weights
+func randomWeightedSample(spaces []*Space, weights []float64) *Space {
+	total_weight := 0.0
+	for _, weight := range weights {
+		total_weight += weight
+	}
+
+	random_weight := rand.Float64() * total_weight
+
+	// Find the corresponding item
+	current_weight := 0.0
+	for i, weight := range weights {
+		current_weight += weight
+		if random_weight <= current_weight {
+			return spaces[i]
 		}
 	}
 
-	return agents
+	log.Fatalf("this should be unreachable: current weight: %f total_weight %f", current_weight, total_weight)
+	return nil
+}
+
+// calculateWeights calculates weights for areas based on distances to the agent's home area
+func calculateWeights(spaces []*Space, origin *Space) []float64 {
+	weights := make([]float64, len(spaces))
+	origin_point, err := xy.Centroid(origin.jurisdiction.feature.Geometry)
+
+	if err != nil {
+		log.Fatalf("failed to calculate centroid of jurisdiction feature geometry")
+	}
+
+	for i, space := range spaces {
+		space_point, err := xy.Centroid(space.jurisdiction.feature.Geometry)
+		if err != nil {
+			log.Fatalf("failed to calculate centroid of jurisdiction feature geometry")
+		}
+
+		distance := calculateDistance(origin_point, space_point)
+		weights[i] = 1 / (distance + 1e-6) // Avoid division by zero
+	}
+
+	return weights
+}
+
+func calculateDistance(p1, p2 geom.Coord) float64 {
+	if len(p1) < 2 || len(p2) < 2 {
+		log.Fatalf("Invalid coordinates: %v, %v", p1, p2)
+	}
+
+	dx := p1[0] - p2[0]
+	dy := p1[1] - p2[1]
+
+	return math.Sqrt(dx*dx + dy*dy)
 }
