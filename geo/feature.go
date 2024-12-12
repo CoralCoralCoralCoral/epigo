@@ -16,8 +16,8 @@ type Feature struct {
 
 func (feature Feature) Code() string {
 	// props := feature["properties"].(map[string]interface{})
-	if parent, ok := feature.Properties["code"].(string); ok {
-		return parent
+	if code, ok := feature.Properties["code"].(string); ok {
+		return code
 	}
 
 	return ""
@@ -34,8 +34,8 @@ func (feature Feature) ParentCode() string {
 
 func (feature Feature) Name() string {
 	// props := feature["properties"].(map[string]interface{})
-	if parent, ok := feature.Properties["name"].(string); ok {
-		return parent
+	if name, ok := feature.Properties["name"].(string); ok {
+		return name
 	}
 
 	return ""
@@ -43,8 +43,8 @@ func (feature Feature) Name() string {
 
 func (feature Feature) Level() string {
 	// props := feature["properties"].(map[string]interface{})
-	if parent, ok := feature.Properties["level"].(string); ok {
-		return parent
+	if level, ok := feature.Properties["level"].(string); ok {
+		return level
 	}
 
 	return ""
@@ -70,12 +70,6 @@ func (f *Feature) UnmarshalJSON(data []byte) error {
 	if err := geojson.Unmarshal([]byte(intermediate.Geometry), &g); err != nil {
 		return err
 	}
-
-	// Assert the type and use it as a Polygon
-	// polygon, ok := g.(*geom.MultiPolygon)
-	// if !ok {
-	// 	return fmt.Errorf("expected a polygon, got %T", g)
-	// }
 
 	f.Geometry = g
 
