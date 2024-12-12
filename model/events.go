@@ -66,11 +66,11 @@ type SpaceTestingUpdatePayload struct {
 }
 
 type PolicyUpdatePayload struct {
-	JurisdictionId         string
-	IsMaskMandate          bool
-	IsLockdown             bool
-	TestStrategy           TestStrategy
-	TestCapacityMultiplier float64
+	JurisdictionId         string       `json:"jurisdiction_id"`
+	IsMaskMandate          bool         `json:"is_mask_mandate"`
+	IsLockdown             bool         `json:"is_lockdown"`
+	TestStrategy           TestStrategy `json:"test_strategy"`
+	TestCapacityMultiplier float64      `json:"test_capacity_multiplier"`
 }
 
 func (payload *AgentStateUpdatePayload) Jurisdiction() *Jurisdiction {
