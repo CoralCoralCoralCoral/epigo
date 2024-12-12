@@ -26,5 +26,5 @@ func TestSimulation(t *testing.T) {
 		Pathogen:  pathogen,
 	}
 
-	NewSimulation(config)
+	NewSimulation(config, NewDefaultEntityGenerator())
 }

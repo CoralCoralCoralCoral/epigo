@@ -2,20 +2,15 @@ package model
 
 import (
 	"log"
-	"math"
-	"math/rand"
 	"time"
 
-	"github.com/CoralCoralCoralCoral/simulation-engine/geo"
 	"github.com/CoralCoralCoralCoral/simulation-engine/logger"
 	"github.com/google/uuid"
-	"github.com/twpayne/go-geom"
-	"github.com/twpayne/go-geom/xy"
 )
 
 type Simulation struct {
-	id                uuid.UUID
-	pathogen          Pathogen
+	config            Config
+	entity_generator  EntityGenerator
 	start_time        time.Time
 	epoch             int64
 	time_step         int64
@@ -31,16 +26,8 @@ type Simulation struct {
 	logger            logger.Logger
 }
 
-func NewSimulation(config Config) Simulation {
-	msoa_sampler := geo.NewMSOASampler()
-
-	jurisdictions := jurisdictionsFromFeatures()
-	households := createHouseholds(config.NumAgents, jurisdictions, msoa_sampler)
-	offices := createOffices(config.NumAgents, jurisdictions, msoa_sampler)
-	social_spaces := createSocialSpaces(config.NumAgents/100, jurisdictions, msoa_sampler)
-	healthcare_spaces := createHealthCareSpaces(config.NumAgents/1000*5, jurisdictions, msoa_sampler)
-	agents := createAgents(config.NumAgents, households, offices, social_spaces, healthcare_spaces)
-
+func NewSimulation(config Config, entity_generator EntityGenerator) Simulation {
+	// note we are creating a logger named logger_ to avoid shadowing the package
 	logger_ := logger.NewLogger()
 
 	// attach an internal logger to log processed commands for debugging
@@ -52,25 +39,18 @@ func NewSimulation(config Config) Simulation {
 	})
 
 	return Simulation{
-		id:                config.Id,
-		pathogen:          config.Pathogen,
-		start_time:        time.Now(),
-		epoch:             0,
-		time_step:         config.TimeStep,
-		agents:            agents,
-		jurisdictions:     jurisdictions,
-		households:        households,
-		offices:           offices,
-		social_spaces:     social_spaces,
-		healthcare_spaces: healthcare_spaces,
-		commands:          make(chan Command),
-		logger:            logger_,
+		config:           config,
+		entity_generator: entity_generator,
+		start_time:       time.Now(),
+		epoch:            0,
+		time_step:        config.TimeStep,
+		commands:         make(chan Command),
+		logger:           logger_,
 	}
 }
 
 func (sim *Simulation) Start() {
-	go sim.logger.Broadcast()
-
+	sim.initialize()
 	sim.infectRandomAgent()
 
 	for {
@@ -96,7 +76,33 @@ func (sim *Simulation) SendCommand(command Command) {
 }
 
 func (sim *Simulation) Id() uuid.UUID {
-	return sim.id
+	return sim.config.Id
+}
+
+func (sim *Simulation) initialize() {
+	// start broadcasting logged events to listeners
+	go sim.logger.Broadcast()
+
+	sim.logger.Log(logger.Event{
+		Type: SimulationInitializing,
+	})
+
+	sim.generate_entities()
+
+	sim.logger.Log(logger.Event{
+		Type: SimulationInitialized,
+	})
+}
+
+func (sim *Simulation) generate_entities() {
+	entities := sim.entity_generator.Generate(&sim.config)
+
+	sim.agents = entities.agents
+	sim.jurisdictions = entities.jurisdictions
+	sim.households = entities.households
+	sim.offices = entities.offices
+	sim.social_spaces = entities.social_spaces
+	sim.healthcare_spaces = entities.healthcare_spaces
 }
 
 func (sim *Simulation) processCommand(command Command) {
@@ -175,199 +181,4 @@ func (sim *Simulation) applyJurisdictionPolicy(payload ApplyJurisdictionPolicyPa
 			return
 		}
 	}
-}
-
-func createHouseholds(total_capacity int64, jurisdictions []*Jurisdiction, msoa_sampler *geo.MSOASampler) []*Space {
-	households := make([]*Space, 0)
-
-	for remaining_capacity := total_capacity; remaining_capacity > 0; {
-		capacity := int64(math.Max(math.Floor(sampleNormal(4, 1)), 1))
-
-		if capacity > remaining_capacity {
-			capacity = remaining_capacity
-		}
-
-		household := newHousehold(capacity)
-		household.jurisdiction = sampleJurisdiction(jurisdictions, msoa_sampler)
-		households = append(households, &household)
-
-		remaining_capacity -= capacity
-	}
-
-	return households
-}
-
-func createOffices(total_capacity int64, jurisdictions []*Jurisdiction, msoa_sampler *geo.MSOASampler) []*Space {
-	offices := make([]*Space, 0)
-
-	for remaining_capacity := total_capacity; remaining_capacity > 0; {
-		capacity := int64(math.Max(math.Floor(sampleNormal(10, 2)), 1))
-
-		if capacity > remaining_capacity {
-			capacity = remaining_capacity
-		}
-
-		office := newOffice(capacity)
-		office.jurisdiction = sampleJurisdiction(jurisdictions, msoa_sampler)
-		offices = append(offices, &office)
-
-		remaining_capacity -= capacity
-	}
-
-	return offices
-}
-
-func createSocialSpaces(total_capacity int64, jurisdictions []*Jurisdiction, msoa_sampler *geo.MSOASampler) []*Space {
-	social_spaces := make([]*Space, 0)
-
-	for remaining_capacity := total_capacity; remaining_capacity > 0; {
-		capacity := int64(math.Max(math.Floor(sampleNormal(10, 2)), 1))
-
-		if capacity > remaining_capacity {
-			capacity = remaining_capacity
-		}
-
-		social_space := newSocialSpace(capacity)
-		social_space.jurisdiction = sampleJurisdiction(jurisdictions, msoa_sampler)
-		social_spaces = append(social_spaces, &social_space)
-
-		remaining_capacity -= capacity
-	}
-
-	return social_spaces
-}
-
-func createHealthCareSpaces(total_capacity int64, jurisdictions []*Jurisdiction, msoa_sampler *geo.MSOASampler) []*Space {
-	healthcare_spaces := make([]*Space, 0)
-
-	for remaining_capacity := total_capacity; remaining_capacity > 0; {
-		capacity := int64(math.Max(math.Floor(sampleNormal(173, 25)), 1))
-
-		if capacity > remaining_capacity {
-			capacity = remaining_capacity
-		}
-
-		healthcare_space := newHealthcareSpace(capacity)
-		healthcare_space.jurisdiction = sampleJurisdiction(jurisdictions, msoa_sampler)
-		healthcare_spaces = append(healthcare_spaces, &healthcare_space)
-
-		remaining_capacity -= capacity
-	}
-
-	return healthcare_spaces
-}
-
-func createAgents(count int64, households, offices []*Space, social_spaces []*Space, healthcare_spaces []*Space) []*Agent {
-	agents := make([]*Agent, count)
-
-	office_sampler := distanceWeighted(offices)
-	social_space_sampler := distanceWeighted(social_spaces)
-	healthcare_space_sampler := distanceWeighted(healthcare_spaces)
-
-	household_idx, household_allocated_capacity := 0, 0
-	for i := 0; i < int(count); i++ {
-		household := households[household_idx]
-		agents[i] = createAgent(household, office_sampler, social_space_sampler, healthcare_space_sampler)
-
-		household_allocated_capacity += 1
-		if household_allocated_capacity == int(household.capacity) {
-			household_idx += 1
-			household_allocated_capacity = 0
-		}
-	}
-
-	return agents
-}
-
-func createAgent(household *Space, office_sampler, social_space_sampler, healthcare_space_sampler func(space *Space) *Space) *Agent {
-	agent := newAgent()
-	agent.household = household
-	agent.location = household
-
-	// create distance matrix from agent to offices
-	agent.office = office_sampler(agent.household)
-
-	// create distance matrix from agent to social spaces
-	num_social_spaces := int(math.Max(1, math.Floor(sampleNormal(5, 4))))
-	for i := 0; i < num_social_spaces; i++ {
-		agent.social_spaces = append(agent.social_spaces, social_space_sampler(agent.household))
-	}
-
-	// create distance matrix from agent to offices
-	num_healthcare_spaces := int(math.Max(1, math.Floor(sampleNormal(5, 4))))
-	for i := 0; i < num_healthcare_spaces; i++ {
-		agent.healthcare_spaces = append(agent.healthcare_spaces, healthcare_space_sampler(agent.household))
-	}
-
-	return &agent
-}
-
-func distanceWeighted(spaces []*Space) func(space *Space) *Space {
-	weights_map := make(map[string][]float64)
-
-	return func(space *Space) *Space {
-		if weights, ok := weights_map[space.jurisdiction.id]; ok {
-			return randomWeightedSample(spaces, weights)
-		}
-
-		weights := calculateWeights(spaces, space)
-		weights_map[space.jurisdiction.id] = weights
-
-		return randomWeightedSample(spaces, weights)
-	}
-}
-
-// randomWeightedSample selects an space based on weights
-func randomWeightedSample(spaces []*Space, weights []float64) *Space {
-	total_weight := 0.0
-	for _, weight := range weights {
-		total_weight += weight
-	}
-
-	random_weight := rand.Float64() * total_weight
-
-	// Find the corresponding item
-	current_weight := 0.0
-	for i, weight := range weights {
-		current_weight += weight
-		if random_weight <= current_weight {
-			return spaces[i]
-		}
-	}
-
-	log.Fatalf("this should be unreachable: current weight: %f total_weight %f", current_weight, total_weight)
-	return nil
-}
-
-// calculateWeights calculates weights for areas based on distances to the agent's home area
-func calculateWeights(spaces []*Space, origin *Space) []float64 {
-	weights := make([]float64, len(spaces))
-	origin_point, err := xy.Centroid(origin.jurisdiction.feature.Geometry)
-
-	if err != nil {
-		log.Fatalf("failed to calculate centroid of jurisdiction feature geometry")
-	}
-
-	for i, space := range spaces {
-		space_point, err := xy.Centroid(space.jurisdiction.feature.Geometry)
-		if err != nil {
-			log.Fatalf("failed to calculate centroid of jurisdiction feature geometry")
-		}
-
-		distance := calculateDistance(origin_point, space_point)
-		weights[i] = 1 / (distance + 1e-6) // Avoid division by zero
-	}
-
-	return weights
-}
-
-func calculateDistance(p1, p2 geom.Coord) float64 {
-	if len(p1) < 2 || len(p2) < 2 {
-		log.Fatalf("Invalid coordinates: %v, %v", p1, p2)
-	}
-
-	dx := p1[0] - p2[0]
-	dy := p1[1] - p2[1]
-
-	return math.Sqrt(dx*dx + dy*dy)
 }

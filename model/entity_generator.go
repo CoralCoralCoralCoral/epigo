@@ -1,7 +1,7 @@
 package model
 
 type EntityGenerator interface {
-	Generate() Entities
+	Generate(config *Config) Entities
 }
 
 type Entities struct {

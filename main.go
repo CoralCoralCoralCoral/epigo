@@ -23,7 +23,12 @@ func main() {
 
 	init_rx := messaging.NewInitRx(rmq_conn)
 	init_rx.OnReceive(func(api_id uuid.UUID, config model.Config) {
-		sim := model.NewSimulation(config)
+		sim := model.NewSimulation(config, model.NewDefaultEntityGenerator())
+
+		feedback_tx := messaging.NewFeedbackTx(rmq_conn, api_id, sim.Id())
+		defer feedback_tx.Close()
+
+		sim.Subscribe(feedback_tx.NewEventSubscriber())
 
 		metrics_tx := messaging.NewMetricsTx(rmq_conn, api_id, sim.Id())
 		defer metrics_tx.Close()
