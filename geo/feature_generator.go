@@ -91,26 +91,17 @@ func fetchFeature(gisCode string) (*Feature, error) {
 		return nil, fmt.Errorf("failed to read response body: %v", err)
 	}
 
-	var data map[string]interface{}
+	var data struct {
+		Features []Feature `json:"features"`
+	}
+
 	if err := json.Unmarshal(body, &data); err != nil {
 		return nil, fmt.Errorf("failed to parse JSON: %v", err)
 	}
 
 	log.Printf("successfully fetched MSOA data MSOA code: %s\n", gisCode)
 
-	featureMap := data["features"].([]interface{})[0].(map[string]interface{})
-
-	featureJson, err := json.Marshal(featureMap)
-	if err != nil {
-		return nil, err
-	}
-
-	feature := new(Feature)
-	if err := json.Unmarshal(featureJson, feature); err != nil {
-		return nil, err
-	}
-
-	return feature, nil
+	return &data.Features[0], nil
 }
 
 // saveJson serializes the msoas to JSON and saves them to a file.
