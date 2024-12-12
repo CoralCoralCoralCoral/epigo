@@ -11,8 +11,6 @@ import (
 	"github.com/rabbitmq/amqp091-go"
 )
 
-const GAME_METRICS_EXCHANGE = "game-metrics"
-
 type MetricsTx struct {
 	api_id uuid.UUID
 	sim_id uuid.UUID
@@ -50,7 +48,7 @@ func NewMetricsTx(conn *amqp091.Connection, api_id, sim_id uuid.UUID) *MetricsTx
 	ch, err := conn.Channel()
 	failOnError(err, "failed to create channel")
 
-	err = ch.ExchangeDeclare(GAME_METRICS_EXCHANGE, "topic", false, true, false, false, nil)
+	err = ch.ExchangeDeclare(NOTIFICATION_EXCHANGE, "topic", false, true, false, false, nil)
 	failOnError(err, "failed to create exchange")
 
 	return &MetricsTx{
@@ -180,7 +178,7 @@ func (juristiction_metrics JuristictionMetrics) reset() {
 }
 
 func (juristiction_metrics JuristictionMetrics) print(date string) {
-	fmt.Print("\033[H\033[2J")
+	// fmt.Print("\033[H\033[2J")
 
 	juristiction_metrics["GLOBAL"].print(date)
 }
@@ -222,11 +220,14 @@ func (metrics *Metrics) print(date string) {
 func (tx *MetricsTx) send(juristiction_metrics JuristictionMetrics) {
 	routing_key := fmt.Sprintf("%s.%s", tx.api_id, tx.sim_id)
 
-	body, err := json.Marshal(juristiction_metrics)
+	body, err := json.Marshal(Notification{
+		Type:    MetricsNotification,
+		Payload: juristiction_metrics,
+	})
 	failOnError(err, "failed to json serialize event")
 
 	err = tx.ch.PublishWithContext(context.Background(),
-		GAME_METRICS_EXCHANGE, // exchange
+		NOTIFICATION_EXCHANGE, // exchange
 		routing_key,           // routing key
 		false,                 // mandatory
 		false,                 // immediate

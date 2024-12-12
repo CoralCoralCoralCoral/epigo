@@ -81,7 +81,7 @@ func (agent *Agent) updateState(sim *Simulation) {
 		is_infected := sampleBernoulli(agent.pInfected(sim))
 
 		if is_infected == 1 {
-			agent.infection_profile = sim.pathogen.generateInfectionProfile()
+			agent.infection_profile = sim.config.Pathogen.generateInfectionProfile()
 			agent.setState(sim, Infected)
 		}
 	case Infected:
@@ -216,7 +216,7 @@ func (agent *Agent) setLocation(sim *Simulation, location *Space, duration float
 }
 
 func (agent *Agent) infect(sim *Simulation) {
-	agent.infection_profile = sim.pathogen.generateInfectionProfile()
+	agent.infection_profile = sim.config.Pathogen.generateInfectionProfile()
 	agent.setState(sim, Infected)
 }
 

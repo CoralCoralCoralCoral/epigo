@@ -11,12 +11,12 @@ import (
 	"time"
 )
 
-func fetchFeatures(gis_codes []string) ([]Feature, error) {
+func fetchFeatures(gis_codes []string) ([]*Feature, error) {
 	const numWorkers = 20
 
 	tasks := make(chan string, len(gis_codes)) // Channel to distribute tasks
 
-	features := make(chan Feature, len(gis_codes))
+	features := make(chan *Feature, len(gis_codes))
 	errors := make(chan error, len(gis_codes))
 
 	var wg sync.WaitGroup
@@ -61,7 +61,7 @@ func fetchFeatures(gis_codes []string) ([]Feature, error) {
 		return nil, fmt.Errorf("some fetch operations failed, check logs")
 	}
 
-	results := make([]Feature, 0, len(gis_codes))
+	results := make([]*Feature, 0, len(gis_codes))
 	for feature := range features {
 		results = append(results, feature)
 	}
@@ -69,7 +69,7 @@ func fetchFeatures(gis_codes []string) ([]Feature, error) {
 	return results, nil
 }
 
-func fetchFeature(gisCode string) (Feature, error) {
+func fetchFeature(gisCode string) (*Feature, error) {
 	// debugging
 	log.Printf("fetching geo data for MSOA code: %s\n", gisCode)
 
@@ -91,15 +91,17 @@ func fetchFeature(gisCode string) (Feature, error) {
 		return nil, fmt.Errorf("failed to read response body: %v", err)
 	}
 
-	var data Feature
+	var data struct {
+		Features []Feature `json:"features"`
+	}
+
 	if err := json.Unmarshal(body, &data); err != nil {
 		return nil, fmt.Errorf("failed to parse JSON: %v", err)
 	}
 
 	log.Printf("successfully fetched MSOA data MSOA code: %s\n", gisCode)
 
-	feature := data["features"].([]interface{})[0].(map[string]interface{})
-	return feature, nil
+	return &data.Features[0], nil
 }
 
 // saveJson serializes the msoas to JSON and saves them to a file.
@@ -136,7 +138,7 @@ func GenerateFeatures(path string) {
 	parent_map := make(map[string]interface{}, 0)
 	for _, feature := range features {
 		// tag the feature type
-		feature["properties"].(map[string]interface{})["level"] = "msoa"
+		feature.Properties["level"] = "msoa"
 
 		parent := feature.ParentCode()
 		if parent != "" {
@@ -158,7 +160,7 @@ func GenerateFeatures(path string) {
 
 	for _, feature := range parent_features {
 		// tag the feature type
-		feature["properties"].(map[string]interface{})["level"] = "lad"
+		feature.Properties["level"] = "lad"
 
 		// append parent to features
 		features = append(features, feature)
