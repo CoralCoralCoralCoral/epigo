@@ -220,8 +220,8 @@ func (metrics *Metrics) print(date string) {
 func (tx *MetricsTx) send(juristiction_metrics JuristictionMetrics) {
 	routing_key := fmt.Sprintf("%s.%s", tx.api_id, tx.sim_id)
 
-	body, err := json.Marshal(Update{
-		Type:    MetricsUpdate,
+	body, err := json.Marshal(Notification{
+		Type:    MetricsNotification,
 		Payload: juristiction_metrics,
 	})
 	failOnError(err, "failed to json serialize event")

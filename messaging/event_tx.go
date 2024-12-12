@@ -50,8 +50,8 @@ func (tx *FeedbackTx) send(event *logger.Event) {
 	routing_key := fmt.Sprintf("%s.%s", tx.api_id, tx.sim_id)
 
 	body, err := json.Marshal(
-		Update{
-			Type:    FeedbackUpdate,
+		Notification{
+			Type:    EventNotification,
 			Payload: event,
 		},
 	)
