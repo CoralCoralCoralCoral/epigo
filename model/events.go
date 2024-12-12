@@ -14,6 +14,7 @@ const AgentStateUpdate logger.EventType = "agent_state_update"
 const AgentLocationUpdate logger.EventType = "agent_location_update"
 const SpaceOccupancyUpdate logger.EventType = "space_occupancy_update"
 const SpaceTestingUpdate logger.EventType = "space_testing_udpate"
+const PolicyUpdate logger.EventType = "policy_update"
 
 type EpochEndPayload struct {
 	Epoch    int64     `json:"epoch"`
@@ -62,6 +63,14 @@ type SpaceTestingUpdatePayload struct {
 
 	// needed for metrics aggregation. not public and therefore not a json serialized field
 	jurisdiction *Jurisdiction
+}
+
+type PolicyUpdatePayload struct {
+	JurisdictionId         string
+	IsMaskMandate          bool
+	IsLockdown             bool
+	TestStrategy           TestStrategy
+	TestCapacityMultiplier float64
 }
 
 func (payload *AgentStateUpdatePayload) Jurisdiction() *Jurisdiction {

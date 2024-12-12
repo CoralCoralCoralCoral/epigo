@@ -111,9 +111,9 @@ func (sim *Simulation) processCommand(command Command) {
 		sim.is_paused = true
 	case Resume:
 		sim.is_paused = false
-	case ApplyJurisdictionPolicy:
-		if payload, ok := command.Payload.(*ApplyJurisdictionPolicyPayload); ok {
-			sim.applyJurisdictionPolicy(*payload)
+	case ApplyPolicyUpdate:
+		if payload, ok := command.Payload.(*ApplyPolicyUpdatePayload); ok {
+			sim.applyPolicyUpdate(*payload)
 		}
 	}
 
@@ -172,10 +172,10 @@ func (sim *Simulation) time() time.Time {
 	return sim.start_time.Add(time.Duration(sim.epoch*sim.time_step) * time.Millisecond)
 }
 
-func (sim *Simulation) applyJurisdictionPolicy(payload ApplyJurisdictionPolicyPayload) {
+func (sim *Simulation) applyPolicyUpdate(payload ApplyPolicyUpdatePayload) {
 	for _, jur := range sim.jurisdictions {
 		if jur.id == payload.JurisdictionId {
-			jur.applyPolicy(&payload.Policy)
+			jur.applyPolicyUpdate(sim, &payload)
 			return
 		}
 	}

@@ -7,16 +7,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSerializeAndDeserializeApplyJurisdictionPolicyCommand(t *testing.T) {
+func TestSerializeAndDeserializeApplyPolicyUpdateCommand(t *testing.T) {
+	is_mask_mandate := false
+	is_lockdown := false
+	test_strategy := TestEveryone
+
 	command := Command{
-		Type: ApplyJurisdictionPolicy,
-		Payload: ApplyJurisdictionPolicyPayload{
+		Type: ApplyPolicyUpdate,
+		Payload: ApplyPolicyUpdatePayload{
 			JurisdictionId: "GLOBAL",
-			Policy: Policy{
-				IsMaskMandate: false,
-				IsLockDown:    false,
-				TestStrategy:  TestEveryone,
-			},
+			IsMaskMandate:  &is_mask_mandate,
+			IsLockdown:     &is_lockdown,
+			TestStrategy:   &test_strategy,
 		},
 	}
 
@@ -31,8 +33,8 @@ func TestSerializeAndDeserializeApplyJurisdictionPolicyCommand(t *testing.T) {
 		t.Fatalf("Test failed due to the following Unmarshalling error: %s", err)
 	}
 
-	if deserializedCommand.Type != ApplyJurisdictionPolicy {
-		t.Fatalf("Test failed because the unmarshalled command is not of the expected type. Expected %s, got %s", ApplyJurisdictionPolicy, command.Type)
+	if deserializedCommand.Type != ApplyPolicyUpdate {
+		t.Fatalf("Test failed because the unmarshalled command is not of the expected type. Expected %s, got %s", ApplyPolicyUpdate, command.Type)
 	}
 
 	assert.Equal(t, command.Type, deserializedCommand.Type, "Expected the unmarshalled command to have the same type as the original")
