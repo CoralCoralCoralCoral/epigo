@@ -11,8 +11,6 @@ import (
 	"github.com/rabbitmq/amqp091-go"
 )
 
-const GAME_FEEDBACK_EXCHANGE = "game-feedback"
-
 type FeedbackTx struct {
 	api_id uuid.UUID
 	sim_id uuid.UUID
@@ -23,7 +21,7 @@ func NewFeedbackTx(conn *amqp091.Connection, api_id, sim_id uuid.UUID) *Feedback
 	ch, err := conn.Channel()
 	failOnError(err, "failed to create channel")
 
-	err = ch.ExchangeDeclare(GAME_FEEDBACK_EXCHANGE, "topic", false, true, false, false, nil)
+	err = ch.ExchangeDeclare(UPDATE_EXCHANGE, "topic", false, true, false, false, nil)
 	failOnError(err, "failed to create exchange")
 
 	return &FeedbackTx{
@@ -51,14 +49,19 @@ func (tx *FeedbackTx) Close() {
 func (tx *FeedbackTx) send(event *logger.Event) {
 	routing_key := fmt.Sprintf("%s.%s", tx.api_id, tx.sim_id)
 
-	body, err := json.Marshal(event)
+	body, err := json.Marshal(
+		Update{
+			Type:    FeedbackUpdate,
+			Payload: event,
+		},
+	)
 	failOnError(err, "failed to json serialize event")
 
 	err = tx.ch.PublishWithContext(context.Background(),
-		GAME_FEEDBACK_EXCHANGE, // exchange
-		routing_key,            // routing key
-		false,                  // mandatory
-		false,                  // immediate
+		UPDATE_EXCHANGE, // exchange
+		routing_key,     // routing key
+		false,           // mandatory
+		false,           // immediate
 		amqp091.Publishing{
 			ContentType: "application/json",
 			Body:        body,

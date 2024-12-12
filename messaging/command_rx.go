@@ -10,8 +10,6 @@ import (
 	"github.com/rabbitmq/amqp091-go"
 )
 
-const COMMAND_EXCHANGE = "game-commands"
-
 type CommandRx struct {
 	ch       *amqp091.Channel
 	messages <-chan amqp091.Delivery

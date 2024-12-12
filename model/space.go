@@ -13,7 +13,7 @@ const TestSpecificity float64 = 0.999
 const Household SpaceType = "household"
 const Office SpaceType = "office"
 const SocialSpace SpaceType = "social_space"
-const HealthCareSpace = "healthcare_space"
+const HealthCareSpace SpaceType = "healthcare_space"
 
 type Space struct {
 	id                     uuid.UUID
