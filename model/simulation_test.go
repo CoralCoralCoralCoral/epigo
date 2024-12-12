@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestSimulation(t *testing.T) {
+func TestSimulationInitialization(t *testing.T) {
 	pathogen := Pathogen{
 		IncubationPeriod:           [2]float64{3 * 24 * 60 * 60 * 1000, 8 * 60 * 60 * 1000},
 		RecoveryPeriod:             [2]float64{7 * 24 * 60 * 60 * 1000, 8 * 60 * 60 * 1000},
@@ -22,9 +22,10 @@ func TestSimulation(t *testing.T) {
 	config := Config{
 		Id:        uuid.New(),
 		TimeStep:  15 * 60 * 1000,
-		NumAgents: 1000000,
+		NumAgents: 150000,
 		Pathogen:  pathogen,
 	}
 
-	NewSimulation(config, NewDefaultEntityGenerator())
+	sim := NewSimulation(config, NewDefaultEntityGenerator())
+	sim.initialize()
 }
