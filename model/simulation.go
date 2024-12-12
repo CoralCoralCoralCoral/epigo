@@ -33,6 +33,8 @@ func NewSimulation(config Config, entity_generator EntityGenerator) Simulation {
 	// attach an internal logger to log processed commands for debugging
 	logger_.Subscribe(func(event *logger.Event) {
 		switch event.Type {
+		case SimulationInitialized:
+			log.Print("simulation initialized")
 		case CommandProcessed:
 			log.Printf("processed command of type %s", event.Payload.(CommandProcessedPayload).Command.Type)
 		}
@@ -82,10 +84,6 @@ func (sim *Simulation) Id() uuid.UUID {
 func (sim *Simulation) initialize() {
 	// start broadcasting logged events to listeners
 	go sim.logger.Broadcast()
-
-	sim.logger.Log(logger.Event{
-		Type: SimulationInitializing,
-	})
 
 	sim.generate_entities()
 

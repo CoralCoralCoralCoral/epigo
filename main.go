@@ -25,10 +25,10 @@ func main() {
 	init_rx.OnReceive(func(api_id uuid.UUID, config model.Config) {
 		sim := model.NewSimulation(config, model.NewDefaultEntityGenerator())
 
-		feedback_tx := messaging.NewFeedbackTx(rmq_conn, api_id, sim.Id())
-		defer feedback_tx.Close()
+		event_tx := messaging.NewEventTx(rmq_conn, api_id, sim.Id())
+		defer event_tx.Close()
 
-		sim.Subscribe(feedback_tx.NewEventSubscriber())
+		sim.Subscribe(event_tx.NewEventSubscriber())
 
 		metrics_tx := messaging.NewMetricsTx(rmq_conn, api_id, sim.Id())
 		defer metrics_tx.Close()

@@ -48,7 +48,7 @@ func NewMetricsTx(conn *amqp091.Connection, api_id, sim_id uuid.UUID) *MetricsTx
 	ch, err := conn.Channel()
 	failOnError(err, "failed to create channel")
 
-	err = ch.ExchangeDeclare(UPDATE_EXCHANGE, "topic", false, true, false, false, nil)
+	err = ch.ExchangeDeclare(NOTIFICATION_EXCHANGE, "topic", false, true, false, false, nil)
 	failOnError(err, "failed to create exchange")
 
 	return &MetricsTx{
@@ -227,10 +227,10 @@ func (tx *MetricsTx) send(juristiction_metrics JuristictionMetrics) {
 	failOnError(err, "failed to json serialize event")
 
 	err = tx.ch.PublishWithContext(context.Background(),
-		UPDATE_EXCHANGE, // exchange
-		routing_key,     // routing key
-		false,           // mandatory
-		false,           // immediate
+		NOTIFICATION_EXCHANGE, // exchange
+		routing_key,           // routing key
+		false,                 // mandatory
+		false,                 // immediate
 		amqp091.Publishing{
 			ContentType: "application/json",
 			Body:        body,

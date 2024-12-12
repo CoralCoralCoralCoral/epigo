@@ -11,30 +11,30 @@ import (
 	"github.com/rabbitmq/amqp091-go"
 )
 
-type FeedbackTx struct {
+type EventTx struct {
 	api_id uuid.UUID
 	sim_id uuid.UUID
 	ch     *amqp091.Channel
 }
 
-func NewFeedbackTx(conn *amqp091.Connection, api_id, sim_id uuid.UUID) *FeedbackTx {
+func NewEventTx(conn *amqp091.Connection, api_id, sim_id uuid.UUID) *EventTx {
 	ch, err := conn.Channel()
 	failOnError(err, "failed to create channel")
 
-	err = ch.ExchangeDeclare(UPDATE_EXCHANGE, "topic", false, true, false, false, nil)
+	err = ch.ExchangeDeclare(NOTIFICATION_EXCHANGE, "topic", false, true, false, false, nil)
 	failOnError(err, "failed to create exchange")
 
-	return &FeedbackTx{
+	return &EventTx{
 		api_id,
 		sim_id,
 		ch,
 	}
 }
 
-func (tx *FeedbackTx) NewEventSubscriber() func(event *logger.Event) {
+func (tx *EventTx) NewEventSubscriber() func(event *logger.Event) {
 	return func(event *logger.Event) {
 		switch event.Type {
-		case model.SimulationInitializing, model.SimulationInitialized, model.CommandProcessed:
+		case model.SimulationInitialized, model.CommandProcessed:
 			tx.send(event)
 		default:
 			// ignore other types of events
@@ -42,11 +42,11 @@ func (tx *FeedbackTx) NewEventSubscriber() func(event *logger.Event) {
 	}
 }
 
-func (tx *FeedbackTx) Close() {
+func (tx *EventTx) Close() {
 	tx.ch.Close()
 }
 
-func (tx *FeedbackTx) send(event *logger.Event) {
+func (tx *EventTx) send(event *logger.Event) {
 	routing_key := fmt.Sprintf("%s.%s", tx.api_id, tx.sim_id)
 
 	body, err := json.Marshal(
@@ -58,10 +58,10 @@ func (tx *FeedbackTx) send(event *logger.Event) {
 	failOnError(err, "failed to json serialize event")
 
 	err = tx.ch.PublishWithContext(context.Background(),
-		UPDATE_EXCHANGE, // exchange
-		routing_key,     // routing key
-		false,           // mandatory
-		false,           // immediate
+		NOTIFICATION_EXCHANGE, // exchange
+		routing_key,           // routing key
+		false,                 // mandatory
+		false,                 // immediate
 		amqp091.Publishing{
 			ContentType: "application/json",
 			Body:        body,

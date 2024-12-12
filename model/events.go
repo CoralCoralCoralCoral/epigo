@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 )
 
-const SimulationInitializing logger.EventType = "simulation_initializing"
 const SimulationInitialized logger.EventType = "simulation_initialized"
 const EpochEnd logger.EventType = "epoch_end"
 const CommandProcessed logger.EventType = "command_processed"
