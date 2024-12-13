@@ -7,7 +7,7 @@ import (
 const Quit CommandType = "quit"
 const Pause CommandType = "pause"
 const Resume CommandType = "resume"
-const ApplyJurisdictionPolicy CommandType = "apply_jurisdiction_policy"
+const ApplyPolicyUpdate CommandType = "apply_policy_update"
 
 type Command struct {
 	Type    CommandType `json:"type"`
@@ -16,9 +16,12 @@ type Command struct {
 
 type CommandType string
 
-type ApplyJurisdictionPolicyPayload struct {
-	JurisdictionId string `json:"jurisdiction_id"`
-	Policy         Policy `json:"policy"`
+type ApplyPolicyUpdatePayload struct {
+	JurisdictionId         string        `json:"jurisdiction_id"`
+	IsMaskMandate          *bool         `json:"is_mask_mandate"`
+	IsLockdown             *bool         `json:"is_lockdown"`
+	TestStrategy           *TestStrategy `json:"test_strategy"`
+	TestCapacityMultiplier *float64      `json:"test_capacity_multiplier"`
 }
 
 // UnmarshalJSON implements the custom unmarshalling logic for Command.
@@ -43,8 +46,8 @@ func (c *Command) UnmarshalJSON(data []byte) error {
 
 	var payload interface{}
 	switch intermediate.Type {
-	case ApplyJurisdictionPolicy:
-		payload = &ApplyJurisdictionPolicyPayload{}
+	case ApplyPolicyUpdate:
+		payload = &ApplyPolicyUpdatePayload{}
 	default:
 		payload = &map[string]interface{}{}
 	}

@@ -240,7 +240,7 @@ func jurisdictionsFromFeatures() []*Jurisdiction {
 
 	// create jurisdictions
 	for _, feature := range features {
-		jurisdictions = append(jurisdictions, newJurisdiction(feature.Code(), nil, feature))
+		jurisdictions = append(jurisdictions, newJurisdiction(feature.Code(), feature))
 	}
 
 	// assign parents
@@ -256,16 +256,16 @@ func jurisdictionsFromFeatures() []*Jurisdiction {
 			})
 
 			if jur != nil && parent_jur != nil {
-				jur.parent = parent_jur
+				jur.assignParent(parent_jur)
 			}
 		}
 	}
 
 	// assign the highest level jurisdictions (orphan jurisdictions to the GLOBAL jurisdiction)
-	global_jur := newJurisdiction("GLOBAL", nil, nil)
+	global_jur := newJurisdiction("GLOBAL", nil)
 	for _, jur := range jurisdictions {
 		if jur.parent == nil {
-			jur.parent = global_jur
+			jur.assignParent(global_jur)
 		}
 	}
 

@@ -103,10 +103,8 @@ func (agent *Agent) updateState(sim *Simulation) {
 		if state_duration >= agent.infection_profile.hospitalization_period {
 			if agent.infection_profile.is_dead {
 				agent.setState(sim, Dead)
-			} else if agent.infection_profile != nil {
-				agent.setState(sim, Immune)
 			} else {
-				agent.setState(sim, Susceptible)
+				agent.setState(sim, Immune)
 			}
 		}
 	case Immune:
@@ -168,7 +166,7 @@ func (agent *Agent) updateLocation(sim *Simulation) {
 	location_type, _, _, _, policy := agent.location.state()
 	switch location_type {
 	case Household:
-		if policy != nil && policy.IsLockDown && agent.is_compliant {
+		if policy != nil && policy.is_lockdown && agent.is_compliant {
 			break
 		}
 
@@ -255,7 +253,7 @@ func (agent *Agent) pInfected(sim *Simulation) float64 {
 	_, volume, _, total_infectious_doses, policy := agent.location.state()
 
 	filtration_efficiency := 0.0
-	if policy != nil && policy.IsMaskMandate && agent.is_compliant {
+	if policy != nil && policy.is_mask_mandate && agent.is_compliant {
 		filtration_efficiency = agent.mask_filtration_efficiency
 	}
 

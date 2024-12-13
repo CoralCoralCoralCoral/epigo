@@ -4,11 +4,11 @@ const TestEveryone TestStrategy = "everyone"
 const TestSymptomatic TestStrategy = "symptomatic"
 const TestNone TestStrategy = "none"
 
-type Policy struct {
-	IsMaskMandate          bool         `json:"is_mask_mandate"`
-	IsLockDown             bool         `json:"is_lockdown"`
-	TestStrategy           TestStrategy `json:"test_strategy"`
-	TestCapacityMultiplier float64      `json:"test_capacity_multiplier"`
-}
-
 type TestStrategy string
+
+type Policy struct {
+	is_mask_mandate          bool
+	is_lockdown              bool
+	test_strategy            TestStrategy
+	test_capacity_multiplier float64
+}
