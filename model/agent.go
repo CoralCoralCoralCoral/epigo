@@ -103,10 +103,8 @@ func (agent *Agent) updateState(sim *Simulation) {
 		if state_duration >= agent.infection_profile.hospitalization_period {
 			if agent.infection_profile.is_dead {
 				agent.setState(sim, Dead)
-			} else if agent.infection_profile != nil {
-				agent.setState(sim, Immune)
 			} else {
-				agent.setState(sim, Susceptible)
+				agent.setState(sim, Immune)
 			}
 		}
 	case Immune:
