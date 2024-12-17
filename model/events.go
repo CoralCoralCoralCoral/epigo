@@ -43,6 +43,8 @@ type AgentLocationUpdatePayload struct {
 	Id                 uuid.UUID `json:"id"`
 	LocationId         uuid.UUID `json:"location_id"`
 	PreviousLocationId uuid.UUID `json:"previous_location_id"`
+
+	agent *Agent
 }
 
 type SpaceOccupancyUpdatePayload struct {

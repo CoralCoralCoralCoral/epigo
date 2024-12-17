@@ -34,7 +34,9 @@ func (logger *Logger) Broadcast() {
 		event := <-logger.events
 
 		for _, channel := range logger.channels {
-			channel <- &event
+			func(channel chan *Event) {
+				channel <- &event
+			}(channel)
 		}
 	}
 }
