@@ -82,7 +82,7 @@ func (sim *Simulation) Id() uuid.UUID {
 }
 
 func (sim *Simulation) initialize() {
-	budgetConfig := InitialiseBudget(&sim.logger)
+	budgetConfig := InitialiseBudget(sim)
 
 	// InitialiseBudget(&sim.logger)
 	sim.logger.Subscribe(budgetConfig.NewEventSubscriber())
