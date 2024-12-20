@@ -176,6 +176,13 @@ func (agent *Agent) updateLocation(sim *Simulation) {
 				agent.office,
 				sampleNormal(8*60*60*1000, 2*60*60*1000),
 			)
+		} else if sampleBernoulli(0.001) == 1 {
+			// simulate randomly going to a healthcare space
+			agent.setLocation(
+				sim,
+				agent.healthcare_spaces[sampleUniform(0, int64(len(agent.healthcare_spaces)-1))],
+				sampleNormal(45*60*1000, 15*60*1000),
+			)
 		} else {
 			// select a social space at uniform random from the agent's list of social spaces.
 			// in reality this wouldn't be uniform random, rather mostly a function of proximity,
