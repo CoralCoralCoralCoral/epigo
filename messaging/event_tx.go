@@ -34,7 +34,7 @@ func NewEventTx(conn *amqp091.Connection, api_id, sim_id uuid.UUID) *EventTx {
 func (tx *EventTx) NewEventSubscriber() func(event *logger.Event) {
 	return func(event *logger.Event) {
 		switch event.Type {
-		case model.SimulationInitialized, model.PolicyUpdate, model.CommandProcessed:
+		case model.SimulationInitialized, model.PolicyUpdate, model.CommandProcessed, model.BudgetUpdate:
 			tx.send(event)
 		default:
 			// ignore other types of events

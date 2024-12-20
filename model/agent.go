@@ -204,7 +204,7 @@ func (agent *Agent) updateLocation(sim *Simulation) {
 }
 
 func (agent *Agent) setLocation(sim *Simulation, location *Space, duration float64) {
-	previous_location_id := agent.location.id
+	previous_location := agent.location
 
 	// remove agent from current location
 	agent.location.removeAgent(sim, agent)
@@ -216,7 +216,7 @@ func (agent *Agent) setLocation(sim *Simulation, location *Space, duration float
 	agent.location = location
 	agent.location_change_epoch = sim.epoch
 	agent.next_move_epoch = sim.epoch + int64(math.Ceil(duration/float64(sim.time_step)))
-	agent.dispatchLocationUpdateEvent(sim, previous_location_id)
+	agent.dispatchLocationUpdateEvent(sim, previous_location)
 }
 
 func (agent *Agent) infect(sim *Simulation) {
@@ -241,14 +241,15 @@ func (agent *Agent) dispatchStateUpdateEvent(sim *Simulation, previous_state Age
 	sim.logger.Log(event)
 }
 
-func (agent *Agent) dispatchLocationUpdateEvent(sim *Simulation, previous_location_id uuid.UUID) {
+func (agent *Agent) dispatchLocationUpdateEvent(sim *Simulation, previous_location *Space) {
 	event := logger.Event{
 		Type: AgentLocationUpdate,
 		Payload: AgentLocationUpdatePayload{
 			Epoch:              sim.epoch,
 			Id:                 agent.id,
 			LocationId:         agent.location.id,
-			PreviousLocationId: previous_location_id,
+			PreviousLocationId: previous_location.id,
+			agent:              agent,
 		},
 	}
 
