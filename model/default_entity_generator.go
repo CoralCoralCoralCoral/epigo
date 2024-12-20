@@ -100,7 +100,7 @@ func createSocialSpaces(config *Config, jurisdictions []*Jurisdiction, msoa_samp
 func createHealthCareSpaces(config *Config, jurisdictions []*Jurisdiction, msoa_sampler *geo.MSOASampler) []*Space {
 	healthcare_spaces := make([]*Space, 0)
 
-	for remaining_capacity := config.NumAgents / 1000 * 100; remaining_capacity > 0; {
+	for remaining_capacity := (config.NumAgents / 1000) * 100; remaining_capacity > 0; {
 		capacity := int64(math.Max(math.Floor(sampleNormal(config.HealthcareSpaceCapacityMean, config.HealthcareSpaceCapacitySd)), 1))
 
 		if capacity > remaining_capacity {
