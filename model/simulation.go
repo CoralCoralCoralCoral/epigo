@@ -10,6 +10,7 @@ import (
 
 type Simulation struct {
 	config            Config
+	pathogen          *Pathogen
 	entity_generator  EntityGenerator
 	start_time        time.Time
 	epoch             int64
@@ -42,6 +43,7 @@ func NewSimulation(config Config, entity_generator EntityGenerator) Simulation {
 
 	return Simulation{
 		config:           config,
+		pathogen:         newPathogen(&config),
 		entity_generator: entity_generator,
 		start_time:       time.Now(),
 		epoch:            0,

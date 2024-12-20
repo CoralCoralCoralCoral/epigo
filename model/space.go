@@ -7,9 +7,6 @@ import (
 	"github.com/google/uuid"
 )
 
-const TestSensitivity float64 = 0.7
-const TestSpecificity float64 = 0.999
-
 const Household SpaceType = "household"
 const Office SpaceType = "office"
 const SocialSpace SpaceType = "social_space"
@@ -20,7 +17,6 @@ type Space struct {
 	type_                  SpaceType
 	jurisdiction           *Jurisdiction
 	occupants              []*Agent
-	capacity               int64
 	volume                 float64
 	air_change_rate        float64
 	total_infectious_doses float64
@@ -32,58 +28,53 @@ type Space struct {
 
 type SpaceType string
 
-func newHousehold(capacity int64) Space {
+func newHousehold(config *Config, capacity int64) Space {
 	return Space{
 		id:                     uuid.New(),
 		type_:                  Household,
 		jurisdiction:           nil,
-		occupants:              make([]*Agent, 0),
-		capacity:               capacity,
-		volume:                 sampleNormal(17, 2),
-		air_change_rate:        sampleNormal(7, 1),
+		occupants:              make([]*Agent, 0, capacity),
+		volume:                 sampleNormal(config.HouseholdVolumeMean, config.HouseholdVolumeSd),
+		air_change_rate:        sampleNormal(config.HouseholdAirChangeRateMean, config.HouseholdAirChangeRateSd),
 		total_infectious_doses: 0,
 	}
 }
 
-func newOffice(capacity int64) Space {
+func newOffice(config *Config) Space {
 	return Space{
 		id:                     uuid.New(),
 		type_:                  Office,
 		jurisdiction:           nil,
 		occupants:              make([]*Agent, 0),
-		capacity:               capacity,
-		volume:                 sampleNormal(60, 20),
-		air_change_rate:        sampleNormal(20, 5),
+		volume:                 sampleNormal(config.OfficeVolumeMean, config.OfficeVolumeSd),
+		air_change_rate:        sampleNormal(config.OfficeAirChangeRateMean, config.OfficeAirChangeRateSd),
 		total_infectious_doses: 0,
 	}
 }
-
-func newSocialSpace(capacity int64) Space {
+func newSocialSpace(config *Config) Space {
 	return Space{
 		id:                     uuid.New(),
 		type_:                  SocialSpace,
 		jurisdiction:           nil,
 		occupants:              make([]*Agent, 0),
-		capacity:               capacity,
-		volume:                 sampleNormal(60, 10),
-		air_change_rate:        sampleNormal(20, 5),
+		volume:                 sampleNormal(config.SocialSpaceVolumeMean, config.SocialSpaceVolumeSd),
+		air_change_rate:        sampleNormal(config.SocialSpaceAirChangeRateMean, config.SocialSpaceAirChangeRateSd),
 		total_infectious_doses: 0,
 	}
 }
 
-func newHealthcareSpace(capacity int64) Space {
+func newHealthcareSpace(config *Config) Space {
 	return Space{
 		id:                     uuid.New(),
 		type_:                  HealthCareSpace,
 		jurisdiction:           nil,
 		occupants:              make([]*Agent, 0),
-		capacity:               capacity,
-		volume:                 sampleNormal(60, 10),
-		air_change_rate:        sampleNormal(20, 5),
+		volume:                 sampleNormal(config.HealthcareSpaceVolumeMean, config.HealthcareSpaceVolumeSd),
+		air_change_rate:        sampleNormal(config.HealthcareSpaceAirChangeRateMean, config.HealthcareSpaceAirChangeRateSd),
 		total_infectious_doses: 0,
 
-		test_capacity: int64(math.Max(1, math.Floor(sampleNormal(300, 150)))),
-		test_backlog:  make(chan bool, 1000000),
+		test_capacity: int64(math.Max(1, math.Floor(sampleNormal(config.TestCapacityMean, config.TestCapacitySd)))),
+		test_backlog:  make(chan bool, config.NumAgents),
 	}
 }
 
@@ -120,13 +111,13 @@ func (space *Space) addAgent(sim *Simulation, agent *Agent) {
 		switch policy.test_strategy {
 		case TestEveryone:
 			if agent.infection_profile != nil {
-				if sampleBernoulli(TestSensitivity) == 1 {
+				if sampleBernoulli(sim.config.TestSensitivity) == 1 {
 					space.test_backlog <- true
 				} else {
 					space.test_backlog <- false
 				}
 			} else { // agent is not infected, so simulate test using test specificity
-				if sampleBernoulli(TestSpecificity) == 1 {
+				if sampleBernoulli(sim.config.TestSpecificity) == 1 {
 					space.test_backlog <- false
 				} else {
 					space.test_backlog <- true
@@ -134,7 +125,7 @@ func (space *Space) addAgent(sim *Simulation, agent *Agent) {
 			}
 		case TestSymptomatic:
 			if agent.infection_profile != nil && !agent.infection_profile.is_asymptomatic {
-				if sampleBernoulli(TestSensitivity) == 1 {
+				if sampleBernoulli(sim.config.TestSensitivity) == 1 {
 					space.test_backlog <- true
 				} else {
 					space.test_backlog <- false

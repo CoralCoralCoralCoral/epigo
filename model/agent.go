@@ -34,14 +34,14 @@ type Agent struct {
 
 type AgentState string
 
-func newAgent() Agent {
+func newAgent(config *Config) Agent {
 	is_compliant := false
-	if sampleBernoulli(0.95) == 1 {
+	if sampleBernoulli(config.ComplianceProbability) == 1 {
 		is_compliant = true
 	}
 
 	seeks_treatment := false
-	if sampleBernoulli(0.4) == 1 {
+	if sampleBernoulli(config.SeeksTreatmentProbability) == 1 {
 		seeks_treatment = true
 	}
 
@@ -57,9 +57,9 @@ func newAgent() Agent {
 		state:                      Susceptible,
 		state_change_epoch:         0,
 		infection_profile:          nil,
-		pulmonary_ventilation_rate: sampleNormal(0.36, 0.01),
+		pulmonary_ventilation_rate: sampleNormal(config.PulmonaryVentilationRateMean, config.PulmonaryVentilationRateSd),
 		is_compliant:               is_compliant,
-		mask_filtration_efficiency: math.Max(sampleNormal(0.8, 0.15), 1),
+		mask_filtration_efficiency: math.Max(sampleNormal(config.MaskFiltrationEfficiencyMean, config.MaskFiltrationEfficiencySd), 0.95),
 		seeks_treatment:            seeks_treatment,
 	}
 }
@@ -81,8 +81,7 @@ func (agent *Agent) updateState(sim *Simulation) {
 		is_infected := sampleBernoulli(agent.pInfected(sim))
 
 		if is_infected == 1 {
-			agent.infection_profile = sim.config.Pathogen.generateInfectionProfile()
-			agent.setState(sim, Infected)
+			agent.infect(sim)
 		}
 	case Infected:
 		if state_duration >= agent.infection_profile.incubation_period {
@@ -221,7 +220,7 @@ func (agent *Agent) setLocation(sim *Simulation, location *Space, duration float
 }
 
 func (agent *Agent) infect(sim *Simulation) {
-	agent.infection_profile = sim.config.Pathogen.generateInfectionProfile()
+	agent.infection_profile = sim.pathogen.generateInfectionProfile()
 	agent.setState(sim, Infected)
 }
 

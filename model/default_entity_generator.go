@@ -21,11 +21,11 @@ func (g *DefaultEntityGenerator) Generate(config *Config) Entities {
 	msoa_sampler := geo.NewMSOASampler()
 
 	jurisdictions := jurisdictionsFromFeatures()
-	households := createHouseholds(config.NumAgents, jurisdictions, msoa_sampler)
-	offices := createOffices(config.NumAgents, jurisdictions, msoa_sampler)
-	social_spaces := createSocialSpaces(config.NumAgents/100, jurisdictions, msoa_sampler)
-	healthcare_spaces := createHealthCareSpaces(config.NumAgents/1000*5, jurisdictions, msoa_sampler)
-	agents := createAgents(config.NumAgents, households, offices, social_spaces, healthcare_spaces)
+	households := createHouseholds(config, jurisdictions, msoa_sampler)
+	offices := createOffices(config, jurisdictions, msoa_sampler)
+	social_spaces := createSocialSpaces(config, jurisdictions, msoa_sampler)
+	healthcare_spaces := createHealthCareSpaces(config, jurisdictions, msoa_sampler)
+	agents := createAgents(config, households, offices, social_spaces, healthcare_spaces)
 
 	return Entities{
 		agents,
@@ -37,17 +37,17 @@ func (g *DefaultEntityGenerator) Generate(config *Config) Entities {
 	}
 }
 
-func createHouseholds(total_capacity int64, jurisdictions []*Jurisdiction, msoa_sampler *geo.MSOASampler) []*Space {
+func createHouseholds(config *Config, jurisdictions []*Jurisdiction, msoa_sampler *geo.MSOASampler) []*Space {
 	households := make([]*Space, 0)
 
-	for remaining_capacity := total_capacity; remaining_capacity > 0; {
-		capacity := int64(math.Max(math.Floor(sampleNormal(4, 1)), 1))
+	for remaining_capacity := config.NumAgents; remaining_capacity > 0; {
+		capacity := int64(math.Max(math.Floor(sampleNormal(config.HouseholdCapacityMean, config.HouseholdCapacitySd)), 1))
 
 		if capacity > remaining_capacity {
 			capacity = remaining_capacity
 		}
 
-		household := newHousehold(capacity)
+		household := newHousehold(config, capacity)
 		household.jurisdiction = sampleJurisdiction(jurisdictions, msoa_sampler)
 		households = append(households, &household)
 
@@ -57,17 +57,17 @@ func createHouseholds(total_capacity int64, jurisdictions []*Jurisdiction, msoa_
 	return households
 }
 
-func createOffices(total_capacity int64, jurisdictions []*Jurisdiction, msoa_sampler *geo.MSOASampler) []*Space {
+func createOffices(config *Config, jurisdictions []*Jurisdiction, msoa_sampler *geo.MSOASampler) []*Space {
 	offices := make([]*Space, 0)
 
-	for remaining_capacity := total_capacity; remaining_capacity > 0; {
-		capacity := int64(math.Max(math.Floor(sampleNormal(10, 2)), 1))
+	for remaining_capacity := config.NumAgents; remaining_capacity > 0; {
+		capacity := int64(math.Max(math.Floor(sampleNormal(config.OfficeCapacityMean, config.OfficeCapacitySd)), 1))
 
 		if capacity > remaining_capacity {
 			capacity = remaining_capacity
 		}
 
-		office := newOffice(capacity)
+		office := newOffice(config)
 		office.jurisdiction = sampleJurisdiction(jurisdictions, msoa_sampler)
 		offices = append(offices, &office)
 
@@ -77,17 +77,17 @@ func createOffices(total_capacity int64, jurisdictions []*Jurisdiction, msoa_sam
 	return offices
 }
 
-func createSocialSpaces(total_capacity int64, jurisdictions []*Jurisdiction, msoa_sampler *geo.MSOASampler) []*Space {
+func createSocialSpaces(config *Config, jurisdictions []*Jurisdiction, msoa_sampler *geo.MSOASampler) []*Space {
 	social_spaces := make([]*Space, 0)
 
-	for remaining_capacity := total_capacity; remaining_capacity > 0; {
-		capacity := int64(math.Max(math.Floor(sampleNormal(10, 2)), 1))
+	for remaining_capacity := config.NumAgents / 100; remaining_capacity > 0; {
+		capacity := int64(math.Max(math.Floor(sampleNormal(config.SocialSpaceCapacityMean, config.SocialSpaceCapacitySd)), 1))
 
 		if capacity > remaining_capacity {
 			capacity = remaining_capacity
 		}
 
-		social_space := newSocialSpace(capacity)
+		social_space := newSocialSpace(config)
 		social_space.jurisdiction = sampleJurisdiction(jurisdictions, msoa_sampler)
 		social_spaces = append(social_spaces, &social_space)
 
@@ -97,17 +97,17 @@ func createSocialSpaces(total_capacity int64, jurisdictions []*Jurisdiction, mso
 	return social_spaces
 }
 
-func createHealthCareSpaces(total_capacity int64, jurisdictions []*Jurisdiction, msoa_sampler *geo.MSOASampler) []*Space {
+func createHealthCareSpaces(config *Config, jurisdictions []*Jurisdiction, msoa_sampler *geo.MSOASampler) []*Space {
 	healthcare_spaces := make([]*Space, 0)
 
-	for remaining_capacity := total_capacity; remaining_capacity > 0; {
-		capacity := int64(math.Max(math.Floor(sampleNormal(173, 25)), 1))
+	for remaining_capacity := config.NumAgents / 1000 * 5; remaining_capacity > 0; {
+		capacity := int64(math.Max(math.Floor(sampleNormal(config.HealthcareSpaceCapacityMean, config.HealthcareSpaceCapacitySd)), 1))
 
 		if capacity > remaining_capacity {
 			capacity = remaining_capacity
 		}
 
-		healthcare_space := newHealthcareSpace(capacity)
+		healthcare_space := newHealthcareSpace(config)
 		healthcare_space.jurisdiction = sampleJurisdiction(jurisdictions, msoa_sampler)
 		healthcare_spaces = append(healthcare_spaces, &healthcare_space)
 
@@ -117,20 +117,20 @@ func createHealthCareSpaces(total_capacity int64, jurisdictions []*Jurisdiction,
 	return healthcare_spaces
 }
 
-func createAgents(count int64, households, offices []*Space, social_spaces []*Space, healthcare_spaces []*Space) []*Agent {
-	agents := make([]*Agent, count)
+func createAgents(config *Config, households, offices []*Space, social_spaces []*Space, healthcare_spaces []*Space) []*Agent {
+	agents := make([]*Agent, config.NumAgents)
 
 	office_sampler := distanceWeighted(offices)
 	social_space_sampler := distanceWeighted(social_spaces)
 	healthcare_space_sampler := distanceWeighted(healthcare_spaces)
 
 	household_idx, household_allocated_capacity := 0, 0
-	for i := 0; i < int(count); i++ {
+	for i := 0; i < int(config.NumAgents); i++ {
 		household := households[household_idx]
-		agents[i] = createAgent(household, office_sampler, social_space_sampler, healthcare_space_sampler)
+		agents[i] = createAgent(config, household, office_sampler, social_space_sampler, healthcare_space_sampler)
 
 		household_allocated_capacity += 1
-		if household_allocated_capacity == int(household.capacity) {
+		if household_allocated_capacity == cap(household.occupants) {
 			household_idx += 1
 			household_allocated_capacity = 0
 		}
@@ -139,8 +139,8 @@ func createAgents(count int64, households, offices []*Space, social_spaces []*Sp
 	return agents
 }
 
-func createAgent(household *Space, office_sampler, social_space_sampler, healthcare_space_sampler func(space *Space) *Space) *Agent {
-	agent := newAgent()
+func createAgent(config *Config, household *Space, office_sampler, social_space_sampler, healthcare_space_sampler func(space *Space) *Space) *Agent {
+	agent := newAgent(config)
 	agent.household = household
 	agent.location = household
 
