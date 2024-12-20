@@ -34,12 +34,12 @@ func InitialiseBudget(sim *Simulation) BudgetConfig {
 	// https://www.ons.gov.uk/employmentandlabourmarket/peopleinwork/earningsandworkinghours/timeseries/ybuy/lms
 	config := BudgetConfig{
 		StartingBudget:        1000000,
-		TestCost:              39.99,
-		MaskCost:              9.99,
-		LockdownCostPerCapita: 1000.0,
+		TestCost:              59.99,
+		MaskCost:              19.99,
+		LockdownCostPerCapita: 2500.0,
 		GDPPerCapitaPerEpoch:  (50000.0 / (48 * 38.5)) / (1000 * 60 * 60 / float32(sim.config.TimeStep)),
 		TaxRate:               0.2,
-		DepartmentBudgetRate:  0.01,
+		DepartmentBudgetRate:  0.025,
 		CostMultiplier:        1.0,
 		IncomeMultiplier:      1.0,
 		sim:                   sim,
@@ -117,7 +117,6 @@ func (conf *BudgetConfig) handleCommandProcessedPayload(payload *ApplyPolicyUpda
 			affectedPeople += len(social_space.occupants)
 		}
 	}
-	println("Affected People: %d", affectedPeople)
 
 	if payload.IsLockdown != nil && *payload.IsLockdown {
 		conf.spendBudget(float32(affectedPeople) * conf.LockdownCostPerCapita)
