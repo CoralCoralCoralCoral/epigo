@@ -9,22 +9,22 @@ import (
 const BudgetUpdate logger.EventType = "budget_update"
 
 type BudgetPayload struct {
-	CurrentBudget float32 `json:"current_budget"`
+	CurrentBudget float64 `json:"current_budget"`
 }
 
 type BudgetConfig struct {
-	StartingBudget        float32
-	TestCost              float32
-	MaskCost              float32
-	LockdownCostPerCapita float32
-	GDPPerCapitaPerEpoch  float32
-	TaxRate               float32
-	DepartmentBudgetRate  float32
+	StartingBudget        float64
+	TestCost              float64
+	MaskCost              float64
+	LockdownCostPerCapita float64
+	GDPPerCapitaPerEpoch  float64
+	TaxRate               float64
+	DepartmentBudgetRate  float64
 
 	BudgetPayload *BudgetPayload
 
-	CostMultiplier   float32
-	IncomeMultiplier float32
+	CostMultiplier   float64
+	IncomeMultiplier float64
 
 	sim    *Simulation
 	logger *logger.Logger
@@ -37,7 +37,7 @@ func InitialiseBudget(sim *Simulation) BudgetConfig {
 		TestCost:              59.99,
 		MaskCost:              19.99,
 		LockdownCostPerCapita: 2500.0,
-		GDPPerCapitaPerEpoch:  (50000.0 / (48 * 38.5)) / (1000 * 60 * 60 / float32(sim.config.TimeStep)),
+		GDPPerCapitaPerEpoch:  (50000.0 / (48 * 38.5)) / (1000 * 60 * 60 / float64(sim.config.TimeStep)),
 		TaxRate:               0.2,
 		DepartmentBudgetRate:  0.025,
 		CostMultiplier:        1.0,
@@ -61,7 +61,7 @@ func (conf *BudgetConfig) NewEventSubscriber() func(event *logger.Event) {
 			if testPayload, ok := event.Payload.(SpaceTestingUpdatePayload); ok {
 				totalTests := testPayload.Positives + testPayload.Negatives
 
-				conf.spendBudget(float32(totalTests) * conf.TestCost)
+				conf.spendBudget(float64(totalTests) * conf.TestCost)
 			}
 		case EpochEnd:
 			if payload, ok := event.Payload.(EpochEndPayload); ok {
@@ -76,7 +76,7 @@ func (conf *BudgetConfig) NewEventSubscriber() func(event *logger.Event) {
 		case AgentLocationUpdate:
 			if payload, ok := event.Payload.(AgentLocationUpdatePayload); ok {
 				if payload.agent.location.type_ == Office {
-					conf.addBudget(float32(payload.agent.next_move_epoch-payload.Epoch) * conf.GDPPerCapitaPerEpoch * conf.TaxRate * conf.DepartmentBudgetRate)
+					conf.addBudget(float64(payload.agent.next_move_epoch-payload.Epoch) * conf.GDPPerCapitaPerEpoch * conf.TaxRate * conf.DepartmentBudgetRate)
 				}
 			}
 		case CommandProcessed:
@@ -119,18 +119,18 @@ func (conf *BudgetConfig) handleCommandProcessedPayload(payload *ApplyPolicyUpda
 	}
 
 	if payload.IsLockdown != nil && *payload.IsLockdown {
-		conf.spendBudget(float32(affectedPeople) * conf.LockdownCostPerCapita)
+		conf.spendBudget(float64(affectedPeople) * conf.LockdownCostPerCapita)
 	}
 	if payload.IsMaskMandate != nil && *payload.IsMaskMandate {
-		conf.spendBudget(float32(affectedPeople) * conf.MaskCost)
+		conf.spendBudget(float64(affectedPeople) * conf.MaskCost)
 	}
 }
 
-func (conf *BudgetConfig) spendBudget(amount float32) {
+func (conf *BudgetConfig) spendBudget(amount float64) {
 	conf.BudgetPayload.CurrentBudget -= amount * conf.CostMultiplier
 }
 
-func (conf *BudgetConfig) addBudget(amount float32) {
+func (conf *BudgetConfig) addBudget(amount float64) {
 	conf.BudgetPayload.CurrentBudget += amount * conf.IncomeMultiplier
 }
 
