@@ -137,7 +137,7 @@ func (conf *BudgetConfig) addBudget(amount float64) {
 func getLeafJuristictionIDs(jur *Jurisdiction) []*string {
 	children := jur.children
 	temp := make([]*string, 1)
-	if children == nil || len(children) == 0 {
+	if len(children) == 0 {
 		temp = append(temp, &jur.id)
 	} else {
 		for _, j := range children {
