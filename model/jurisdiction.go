@@ -22,7 +22,8 @@ func newJurisdiction(id string, feature *geo.Feature) *Jurisdiction {
 		id:       id,
 		children: make([]*Jurisdiction, 0),
 		policy: &Policy{
-			test_strategy: TestNone,
+			test_strategy:            TestNone,
+			test_capacity_multiplier: 1,
 		},
 		feature: feature,
 	}
