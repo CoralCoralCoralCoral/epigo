@@ -1,39 +1,44 @@
 package model
 
 import (
+	"encoding/json"
+
 	"github.com/CoralCoralCoralCoral/simulation-engine/geo"
 	"github.com/CoralCoralCoralCoral/simulation-engine/logger"
 )
 
 type Jurisdiction struct {
-	id       string
+	Id      string       `json:"id"`
+	Policy  *Policy      `json:"policy"`
+	Feature *geo.Feature `json:"feature"`
+
+	// non serialized fields
 	parent   *Jurisdiction
 	children []*Jurisdiction
-	policy   *Policy
-	feature  *geo.Feature
 }
 
 func (jur *Jurisdiction) Parent() *Jurisdiction {
 	return jur.parent
 }
 
-func newJurisdiction(id string, feature *geo.Feature) *Jurisdiction {
+func newJurisdiction(config *Config, id string, feature *geo.Feature) *Jurisdiction {
 	jur := Jurisdiction{
-		id:       id,
+		Id:       id,
 		children: make([]*Jurisdiction, 0),
-		policy: &Policy{
-			test_strategy:            TestNone,
-			test_capacity_multiplier: 1,
+		Policy: &Policy{
+			TestStrategy:           TestNone,
+			TestCapacityMultiplier: 1,
+			ComplianceProbability:  config.ComplianceProbability,
 		},
-		feature: feature,
+		Feature: feature,
 	}
 
 	return &jur
 }
 
-func (jur *Jurisdiction) Id() string {
-	return jur.id
-}
+// func (jur *Jurisdiction) Id() string {
+// 	return jur.id
+// }
 
 // make assigning parent an explicit operation
 func (jur *Jurisdiction) assignParent(parent *Jurisdiction) {
@@ -48,29 +53,42 @@ func (jur *Jurisdiction) assignParent(parent *Jurisdiction) {
 
 func (jur *Jurisdiction) applyPolicyUpdate(sim *Simulation, update *ApplyPolicyUpdatePayload) {
 	if update.IsLockdown != nil {
-		jur.policy.is_lockdown = *update.IsLockdown
+		jur.Policy.IsLockdown = *update.IsLockdown
 	}
 
 	if update.IsMaskMandate != nil {
-		jur.policy.is_mask_mandate = *update.IsMaskMandate
+		jur.Policy.IsMaskMandate = *update.IsMaskMandate
+	}
+
+	if update.IsSelfIsolationMandate != nil {
+		jur.Policy.IsSelfIsolationMandate = *update.IsSelfIsolationMandate
+	}
+
+	if update.IsSelfReportingMandate != nil {
+		jur.Policy.IsSelfReportingMandate = *update.IsSelfReportingMandate
 	}
 
 	if update.TestCapacityMultiplier != nil {
-		jur.policy.test_capacity_multiplier = *update.TestCapacityMultiplier
+		jur.Policy.TestCapacityMultiplier = *update.TestCapacityMultiplier
 	}
 
 	if update.TestStrategy != nil {
-		jur.policy.test_strategy = *update.TestStrategy
+		jur.Policy.TestStrategy = *update.TestStrategy
 	}
+
+	if update.ComplianceProbability != nil {
+		jur.Policy.ComplianceProbability = *update.ComplianceProbability
+	}
+
+	var updatedPolicy Policy
+	policyBytes, _ := json.Marshal(jur.Policy)
+	json.Unmarshal(policyBytes, &updatedPolicy)
 
 	sim.logger.Log(logger.Event{
 		Type: PolicyUpdate,
 		Payload: PolicyUpdatePayload{
-			JurisdictionId:         jur.id,
-			IsMaskMandate:          jur.policy.is_mask_mandate,
-			IsLockdown:             jur.policy.is_lockdown,
-			TestStrategy:           jur.policy.test_strategy,
-			TestCapacityMultiplier: jur.policy.test_capacity_multiplier,
+			JurisdictionId: jur.Id,
+			Policy:         updatedPolicy,
 		},
 	})
 
@@ -89,5 +107,5 @@ func (jur *Jurisdiction) resolvePolicy() (policy *Policy) {
 	// 	policy = jur.policy
 	// }
 
-	return jur.policy
+	return jur.Policy
 }

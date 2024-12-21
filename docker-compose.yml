@@ -24,10 +24,10 @@ services:
     ports:
       - 8080:8080
   sim-server:
-    image: ghcr.io/coralcoralcoralcoral/simulation-engine:main
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
+    # image: ghcr.io/coralcoralcoralcoral/simulation-engine:main
+    build:
+      context: .
+      dockerfile: Dockerfile
     environment:
       - 'RMQ_URI=amqp://guest:guest@rabbitmq:5672/'
     depends_on:

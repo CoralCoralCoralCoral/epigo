@@ -27,19 +27,15 @@ type Agent struct {
 	state_change_epoch         int64
 	infection_profile          *InfectionProfile
 	pulmonary_ventilation_rate float64
-	is_compliant               bool
 	seeks_treatment            bool
 	mask_filtration_efficiency float64
+	compliance                 map[float64]bool
+	has_self_reported          bool
 }
 
 type AgentState string
 
 func newAgent(config *Config) Agent {
-	is_compliant := false
-	if sampleBernoulli(config.ComplianceProbability) == 1 {
-		is_compliant = true
-	}
-
 	seeks_treatment := false
 	if sampleBernoulli(config.SeeksTreatmentProbability) == 1 {
 		seeks_treatment = true
@@ -58,9 +54,9 @@ func newAgent(config *Config) Agent {
 		state_change_epoch:         0,
 		infection_profile:          nil,
 		pulmonary_ventilation_rate: sampleNormal(config.PulmonaryVentilationRateMean, config.PulmonaryVentilationRateSd),
-		is_compliant:               is_compliant,
 		mask_filtration_efficiency: math.Max(sampleNormal(config.MaskFiltrationEfficiencyMean, config.MaskFiltrationEfficiencySd), 0.95),
 		seeks_treatment:            seeks_treatment,
+		compliance:                 make(map[float64]bool),
 	}
 }
 
@@ -109,6 +105,7 @@ func (agent *Agent) updateState(sim *Simulation) {
 	case Immune:
 		if state_duration >= agent.infection_profile.immunity_period {
 			agent.infection_profile = nil
+			agent.has_self_reported = false
 			agent.setState(sim, Susceptible)
 		}
 	case Dead:
@@ -127,6 +124,8 @@ func (agent *Agent) setState(sim *Simulation, state AgentState) {
 }
 
 func (agent *Agent) updateLocation(sim *Simulation) {
+	policy := agent.location.resolvePolicy()
+
 	if agent.next_move_epoch == 0 {
 		// assumes agent is in household
 		agent.next_move_epoch = sim.epoch + int64(math.Ceil(sampleNormal(12*60*60*1000, 4*60*60*1000)/float64(sim.time_step)))
@@ -158,14 +157,32 @@ func (agent *Agent) updateLocation(sim *Simulation) {
 		return
 	}
 
+	// in the special case that the agent is infectious and symptomatic and
+	// there is a self reporting mandate and the agent is compliant and
+	// hasn't yet self reported, the agent moves to a healthcare space for a short duration
+	if policy.IsSelfReportingMandate && agent.isCompliant() && agent.state == Infectious && !agent.infection_profile.is_asymptomatic && !agent.has_self_reported {
+		agent.setLocation(
+			sim,
+			agent.healthcare_spaces[sampleUniform(0, int64(len(agent.healthcare_spaces)-1))],
+			sampleNormal(45*60*1000, 15*60*1000),
+		)
+
+		agent.has_self_reported = true
+
+		return
+	}
+
 	if sim.epoch < agent.next_move_epoch {
 		return
 	}
 
-	location_type, _, _, _, policy := agent.location.state()
-	switch location_type {
+	switch agent.location.type_ {
 	case Household:
-		if policy != nil && policy.is_lockdown && agent.is_compliant {
+		if policy.IsLockdown && agent.isCompliant() {
+			break
+		}
+
+		if policy.IsSelfIsolationMandate && agent.isCompliant() && agent.state == Infectious && !agent.infection_profile.is_asymptomatic {
 			break
 		}
 
@@ -183,9 +200,6 @@ func (agent *Agent) updateLocation(sim *Simulation) {
 				sampleNormal(45*60*1000, 15*60*1000),
 			)
 		} else {
-			// select a social space at uniform random from the agent's list of social spaces.
-			// in reality this wouldn't be uniform random, rather mostly a function of proximity,
-			// which can be implemented once geospatial attributes are added to spaces
 			agent.setLocation(
 				sim,
 				agent.social_spaces[sampleUniform(0, int64(len(agent.social_spaces)-1))],
@@ -260,7 +274,7 @@ func (agent *Agent) pInfected(sim *Simulation) float64 {
 	_, volume, _, total_infectious_doses, policy := agent.location.state()
 
 	filtration_efficiency := 0.0
-	if policy != nil && policy.is_mask_mandate && agent.is_compliant {
+	if policy.IsMaskMandate && agent.isCompliant() {
 		filtration_efficiency = agent.mask_filtration_efficiency
 	}
 
@@ -269,4 +283,21 @@ func (agent *Agent) pInfected(sim *Simulation) float64 {
 	p := 1 - math.Exp(-1*(1-filtration_efficiency)*dose_concentration*(agent.pulmonary_ventilation_rate/3600)*(float64(sim.time_step)/1000))
 
 	return p
+}
+
+func (agent *Agent) isCompliant() bool {
+	compliance_probability := agent.location.resolvePolicy().ComplianceProbability
+
+	if is_compliant, ok := agent.compliance[compliance_probability]; ok {
+		return is_compliant
+	}
+
+	is_compliant := false
+	if sampleBernoulli(compliance_probability) == 1 {
+		is_compliant = true
+	}
+
+	agent.compliance[compliance_probability] = is_compliant
+
+	return is_compliant
 }

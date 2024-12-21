@@ -6,12 +6,6 @@ import (
 	"github.com/CoralCoralCoralCoral/simulation-engine/logger"
 )
 
-const BudgetUpdate logger.EventType = "budget_update"
-
-type BudgetPayload struct {
-	CurrentBudget float64 `json:"current_budget"`
-}
-
 type BudgetConfig struct {
 	StartingBudget        float64
 	TestCost              float64
@@ -21,7 +15,7 @@ type BudgetConfig struct {
 	TaxRate               float64
 	DepartmentBudgetRate  float64
 
-	BudgetPayload *BudgetPayload
+	BudgetUpdatePayload *BudgetUpdatePayload
 
 	CostMultiplier   float64
 	IncomeMultiplier float64
@@ -46,7 +40,7 @@ func InitialiseBudget(sim *Simulation) BudgetConfig {
 		logger:                &sim.logger,
 	}
 
-	config.BudgetPayload = &BudgetPayload{
+	config.BudgetUpdatePayload = &BudgetUpdatePayload{
 		CurrentBudget: config.StartingBudget,
 	}
 
@@ -70,7 +64,7 @@ func (conf *BudgetConfig) NewEventSubscriber() func(event *logger.Event) {
 				}
 				go conf.logger.Log(logger.Event{
 					Type:    BudgetUpdate,
-					Payload: conf.BudgetPayload,
+					Payload: conf.BudgetUpdatePayload,
 				})
 			}
 		case AgentLocationUpdate:
@@ -95,7 +89,7 @@ func (conf *BudgetConfig) handleCommandProcessedPayload(payload *ApplyPolicyUpda
 	var affectedPeople int
 	var jur *Jurisdiction
 	for _, _jur := range conf.sim.jurisdictions {
-		if _jur.Id() == payload.JurisdictionId {
+		if _jur.Id == payload.JurisdictionId {
 			jur = _jur
 		}
 	}
@@ -103,17 +97,17 @@ func (conf *BudgetConfig) handleCommandProcessedPayload(payload *ApplyPolicyUpda
 	leafJurs := getLeafJuristictionIDs(jur)
 
 	for _, office := range conf.sim.offices {
-		if slices.Contains(leafJurs, &office.jurisdiction.id) {
+		if slices.Contains(leafJurs, &office.jurisdiction.Id) {
 			affectedPeople += len(office.occupants)
 		}
 	}
 	for _, houses := range conf.sim.households {
-		if slices.Contains(leafJurs, &houses.jurisdiction.id) {
+		if slices.Contains(leafJurs, &houses.jurisdiction.Id) {
 			affectedPeople += len(houses.occupants)
 		}
 	}
 	for _, social_space := range conf.sim.social_spaces {
-		if slices.Contains(leafJurs, &social_space.jurisdiction.id) {
+		if slices.Contains(leafJurs, &social_space.jurisdiction.Id) {
 			affectedPeople += len(social_space.occupants)
 		}
 	}
@@ -127,18 +121,18 @@ func (conf *BudgetConfig) handleCommandProcessedPayload(payload *ApplyPolicyUpda
 }
 
 func (conf *BudgetConfig) spendBudget(amount float64) {
-	conf.BudgetPayload.CurrentBudget -= amount * conf.CostMultiplier
+	conf.BudgetUpdatePayload.CurrentBudget -= amount * conf.CostMultiplier
 }
 
 func (conf *BudgetConfig) addBudget(amount float64) {
-	conf.BudgetPayload.CurrentBudget += amount * conf.IncomeMultiplier
+	conf.BudgetUpdatePayload.CurrentBudget += amount * conf.IncomeMultiplier
 }
 
 func getLeafJuristictionIDs(jur *Jurisdiction) []*string {
 	children := jur.children
 	temp := make([]*string, 1)
 	if len(children) == 0 {
-		temp = append(temp, &jur.id)
+		temp = append(temp, &jur.Id)
 	} else {
 		for _, j := range children {
 			temp = append(temp, getLeafJuristictionIDs(j)...)

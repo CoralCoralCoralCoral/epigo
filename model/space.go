@@ -85,7 +85,7 @@ func (space *Space) update(sim *Simulation) {
 	for _, occupant := range space.occupants {
 		if occupant.state == Infectious {
 			filtration_efficiency := 0.0
-			if policy != nil && policy.is_mask_mandate && occupant.is_compliant {
+			if policy.IsMaskMandate && occupant.isCompliant() {
 				filtration_efficiency = occupant.mask_filtration_efficiency
 			}
 
@@ -107,8 +107,8 @@ func (space *Space) addAgent(sim *Simulation, agent *Agent) {
 	space.occupants = append(space.occupants, agent)
 
 	policy := space.resolvePolicy()
-	if space.type_ == HealthCareSpace && policy != nil {
-		switch policy.test_strategy {
+	if space.type_ == HealthCareSpace {
+		switch policy.TestStrategy {
 		case TestEveryone:
 			if agent.infection_profile != nil {
 				if sampleBernoulli(sim.config.TestSensitivity) == 1 {
@@ -150,10 +150,8 @@ func (space *Space) removeAgent(sim *Simulation, agent *Agent) {
 
 func (space *Space) dispatchTestingUpdateEvent(sim *Simulation) {
 	test_capacity := space.test_capacity
-	if policy := space.resolvePolicy(); policy != nil {
-		if policy.test_capacity_multiplier > 0 {
-			test_capacity = int64(math.Ceil(float64(test_capacity) * policy.test_capacity_multiplier))
-		}
+	if policy := space.resolvePolicy(); policy.TestCapacityMultiplier > 0 {
+		test_capacity = int64(math.Ceil(float64(test_capacity) * policy.TestCapacityMultiplier))
 	}
 
 	positives := 0

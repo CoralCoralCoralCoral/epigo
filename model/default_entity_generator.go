@@ -20,7 +20,7 @@ func NewDefaultEntityGenerator() *DefaultEntityGenerator {
 func (g *DefaultEntityGenerator) Generate(config *Config) Entities {
 	msoa_sampler := geo.NewMSOASampler()
 
-	jurisdictions := jurisdictionsFromFeatures()
+	jurisdictions := jurisdictionsFromFeatures(config)
 	households := createHouseholds(config, jurisdictions, msoa_sampler)
 	offices := createOffices(config, jurisdictions, msoa_sampler)
 	social_spaces := createSocialSpaces(config, jurisdictions, msoa_sampler)
@@ -166,12 +166,12 @@ func distanceWeighted(spaces []*Space) func(space *Space) *Space {
 	weights_map := make(map[string][]float64)
 
 	return func(space *Space) *Space {
-		if weights, ok := weights_map[space.jurisdiction.id]; ok {
+		if weights, ok := weights_map[space.jurisdiction.Id]; ok {
 			return randomWeightedSample(spaces, weights)
 		}
 
 		weights := calculateWeights(spaces, space)
-		weights_map[space.jurisdiction.id] = weights
+		weights_map[space.jurisdiction.Id] = weights
 
 		return randomWeightedSample(spaces, weights)
 	}
@@ -202,14 +202,14 @@ func randomWeightedSample(spaces []*Space, weights []float64) *Space {
 // calculateWeights calculates weights for areas based on distances to the agent's home area
 func calculateWeights(spaces []*Space, origin *Space) []float64 {
 	weights := make([]float64, len(spaces))
-	origin_point, err := xy.Centroid(origin.jurisdiction.feature.Geometry)
+	origin_point, err := xy.Centroid(origin.jurisdiction.Feature.Geometry)
 
 	if err != nil {
 		log.Fatalf("failed to calculate centroid of jurisdiction feature geometry")
 	}
 
 	for i, space := range spaces {
-		space_point, err := xy.Centroid(space.jurisdiction.feature.Geometry)
+		space_point, err := xy.Centroid(space.jurisdiction.Feature.Geometry)
 		if err != nil {
 			log.Fatalf("failed to calculate centroid of jurisdiction feature geometry")
 		}
@@ -232,7 +232,7 @@ func calculateDistance(p1, p2 geom.Coord) float64 {
 	return math.Sqrt(dx*dx + dy*dy)
 }
 
-func jurisdictionsFromFeatures() []*Jurisdiction {
+func jurisdictionsFromFeatures(config *Config) []*Jurisdiction {
 	features := geo.LoadFeatures()
 
 	// allocate array of length feature length + 1 (to also contain the GLOBAL jurisdiction)
@@ -240,19 +240,19 @@ func jurisdictionsFromFeatures() []*Jurisdiction {
 
 	// create jurisdictions
 	for _, feature := range features {
-		jurisdictions = append(jurisdictions, newJurisdiction(feature.Code(), feature))
+		jurisdictions = append(jurisdictions, newJurisdiction(config, feature.Code(), feature))
 	}
 
 	// assign parents
 	for _, feature := range features {
 		if parent_code := feature.ParentCode(); parent_code != "" {
 			jur := findJurisdiction(jurisdictions, func(val *Jurisdiction) bool {
-				return val.Id() == feature.Code()
+				return val.Id == feature.Code()
 			})
 
 			// find parent_jurisdiction
 			parent_jur := findJurisdiction(jurisdictions, func(val *Jurisdiction) bool {
-				return val.Id() == parent_code
+				return val.Id == parent_code
 			})
 
 			if jur != nil && parent_jur != nil {
@@ -262,7 +262,7 @@ func jurisdictionsFromFeatures() []*Jurisdiction {
 	}
 
 	// assign the highest level jurisdictions (orphan jurisdictions to the GLOBAL jurisdiction)
-	global_jur := newJurisdiction("GLOBAL", nil)
+	global_jur := newJurisdiction(config, "GLOBAL", nil)
 	for _, jur := range jurisdictions {
 		if jur.parent == nil {
 			jur.assignParent(global_jur)
@@ -278,7 +278,7 @@ func sampleJurisdiction(jurisdictions []*Jurisdiction, msoa_sampler *geo.MSOASam
 	msoa := msoa_sampler.Sample()
 
 	jur := findJurisdiction(jurisdictions, func(val *Jurisdiction) bool {
-		return val.Id() == msoa.GISCode
+		return val.Id == msoa.GISCode
 	})
 
 	return jur

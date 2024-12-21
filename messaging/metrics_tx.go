@@ -99,7 +99,7 @@ func (tx *MetricsTx) Close() {
 }
 
 func (juristiction_metrics JuristictionMetrics) applySpaceTestingUpdate(jur *model.Jurisdiction, payload *model.SpaceTestingUpdatePayload) {
-	jur_id := jur.Id()
+	jur_id := jur.Id
 
 	if _, ok := juristiction_metrics[jur_id]; !ok {
 		juristiction_metrics[jur_id] = &Metrics{jurisdiction: jur}
@@ -120,7 +120,7 @@ func (juristiction_metrics JuristictionMetrics) applySpaceTestingUpdate(jur *mod
 }
 
 func (juristiction_metrics JuristictionMetrics) applyAgentStateUpdate(jur *model.Jurisdiction, payload *model.AgentStateUpdatePayload) {
-	jur_id := jur.Id()
+	jur_id := jur.Id
 
 	if _, ok := juristiction_metrics[jur_id]; !ok {
 		juristiction_metrics[jur_id] = &Metrics{jurisdiction: jur}
@@ -196,7 +196,7 @@ func (metrics *Metrics) reset() {
 }
 
 func (metrics *Metrics) print(date string) {
-	fmt.Printf("Epidemic state for %s on %s\n", metrics.jurisdiction.Id(), date)
+	fmt.Printf("Epidemic state for %s on %s\n", metrics.jurisdiction.Id, date)
 	fmt.Printf("	New infections:				%d\n", metrics.NewInfections)
 	fmt.Printf("	New hospitalizations:			%d\n", metrics.NewHospitalizations)
 	fmt.Printf("	New recoveries:				%d\n", metrics.NewRecoveries)
