@@ -67,6 +67,16 @@ func (conf *BudgetConfig) NewEventSubscriber() func(event *logger.Event) {
 					Payload: conf.BudgetUpdatePayload,
 				})
 			}
+		case AgentStateUpdate:
+			if payload, ok := event.Payload.(AgentStateUpdatePayload); ok {
+				if payload.State == Hospitalized {
+					conf.spendBudget(8000.0)
+				}
+
+				if payload.State == Dead {
+					conf.spendBudget(2000.0)
+				}
+			}
 		case AgentLocationUpdate:
 			if payload, ok := event.Payload.(AgentLocationUpdatePayload); ok {
 				if payload.agent.location.type_ == Office {
