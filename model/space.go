@@ -23,10 +23,16 @@ type Space struct {
 
 	// healthcare related props
 	test_capacity int64
-	test_backlog  chan bool
+	test_backlog  chan TestResult
 }
 
 type SpaceType string
+
+type TestResult struct {
+	sample_epoch int64
+	agent        *Agent
+	is_positive  bool
+}
 
 func newHousehold(config *Config, capacity int64) Space {
 	return Space{
@@ -74,7 +80,7 @@ func newHealthcareSpace(config *Config) Space {
 		total_infectious_doses: 0,
 
 		test_capacity: int64(math.Max(1, math.Floor(sampleNormal(config.TestCapacityMean, config.TestCapacitySd)))),
-		test_backlog:  make(chan bool, config.NumAgents),
+		test_backlog:  make(chan TestResult, config.NumAgents),
 	}
 }
 
@@ -85,7 +91,7 @@ func (space *Space) update(sim *Simulation) {
 	for _, occupant := range space.occupants {
 		if occupant.state == Infectious {
 			filtration_efficiency := 0.0
-			if policy != nil && policy.is_mask_mandate && occupant.is_compliant {
+			if policy.IsMaskMandate && occupant.isCompliant() {
 				filtration_efficiency = occupant.mask_filtration_efficiency
 			}
 
@@ -107,28 +113,28 @@ func (space *Space) addAgent(sim *Simulation, agent *Agent) {
 	space.occupants = append(space.occupants, agent)
 
 	policy := space.resolvePolicy()
-	if space.type_ == HealthCareSpace && policy != nil {
-		switch policy.test_strategy {
+	if space.type_ == HealthCareSpace {
+		switch policy.TestStrategy {
 		case TestEveryone:
 			if agent.infection_profile != nil {
 				if sampleBernoulli(sim.config.TestSensitivity) == 1 {
-					space.test_backlog <- true
+					space.test_backlog <- TestResult{sim.epoch, agent, true}
 				} else {
-					space.test_backlog <- false
+					space.test_backlog <- TestResult{sim.epoch, agent, false}
 				}
 			} else { // agent is not infected, so simulate test using test specificity
 				if sampleBernoulli(sim.config.TestSpecificity) == 1 {
-					space.test_backlog <- false
+					space.test_backlog <- TestResult{sim.epoch, agent, false}
 				} else {
-					space.test_backlog <- true
+					space.test_backlog <- TestResult{sim.epoch, agent, true}
 				}
 			}
 		case TestSymptomatic:
 			if agent.infection_profile != nil && !agent.infection_profile.is_asymptomatic {
 				if sampleBernoulli(sim.config.TestSensitivity) == 1 {
-					space.test_backlog <- true
+					space.test_backlog <- TestResult{sim.epoch, agent, true}
 				} else {
-					space.test_backlog <- false
+					space.test_backlog <- TestResult{sim.epoch, agent, false}
 				}
 			}
 		}
@@ -150,10 +156,8 @@ func (space *Space) removeAgent(sim *Simulation, agent *Agent) {
 
 func (space *Space) dispatchTestingUpdateEvent(sim *Simulation) {
 	test_capacity := space.test_capacity
-	if policy := space.resolvePolicy(); policy != nil {
-		if policy.test_capacity_multiplier > 0 {
-			test_capacity = int64(math.Ceil(float64(test_capacity) * policy.test_capacity_multiplier))
-		}
+	if policy := space.resolvePolicy(); policy.TestCapacityMultiplier > 0 {
+		test_capacity = int64(math.Ceil(float64(test_capacity) * policy.TestCapacityMultiplier))
 	}
 
 	positives := 0
@@ -163,8 +167,20 @@ loop:
 	for i := 0; i < int(test_capacity); i++ {
 		select {
 		case result := <-space.test_backlog:
-			if result {
+			if result.is_positive {
 				positives += 1
+
+				sim.logger.Log(logger.Event{
+					Type: CaseDetected,
+					Payload: CaseDetectedPayload{
+						Epoch:          sim.epoch,
+						SampleEpoch:    result.sample_epoch,
+						JurisdictionId: result.agent.household.jurisdiction.Id,
+
+						jurisdiction: result.agent.household.jurisdiction,
+					},
+				})
+
 			} else {
 				negatives += 1
 			}

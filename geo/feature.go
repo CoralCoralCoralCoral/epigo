@@ -10,8 +10,8 @@ import (
 // type Feature map[string]interface{}
 
 type Feature struct {
-	Properties map[string]interface{}
-	Geometry   geom.T
+	Properties map[string]interface{} `json:"properties"`
+	Geometry   geom.T                 `json:"geometry"`
 }
 
 func (feature Feature) Code() string {
@@ -74,4 +74,28 @@ func (f *Feature) UnmarshalJSON(data []byte) error {
 	f.Geometry = g
 
 	return nil
+}
+
+func (f Feature) MarshalJSON() ([]byte, error) {
+	type Alias Feature
+
+	intermediate := &struct {
+		Alias
+		Geometry *json.RawMessage `json:"geometry"`
+	}{
+		Alias:    Alias(f), // Embed the alias
+		Geometry: nil,      // Overwrite Name
+	}
+
+	if f.Geometry != nil {
+		jsonBytes, err := geojson.Marshal(f.Geometry)
+		if err != nil {
+			return nil, err
+		}
+
+		rawMessage := json.RawMessage(jsonBytes)
+		intermediate.Geometry = &rawMessage
+	}
+
+	return json.Marshal(intermediate)
 }

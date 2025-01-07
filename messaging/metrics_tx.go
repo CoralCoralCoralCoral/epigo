@@ -35,13 +35,20 @@ type Metrics struct {
 	ImmunePopulation       int `json:"immune_population"`
 	DeadPopulation         int `json:"dead_population"`
 
-	// metrics yielded by surveillance processes
+	// space surveillance metrics
 	NewTests           int `json:"new_tests"`
 	NewPositiveTests   int `json:"new_positive_tests"`
 	TotalTests         int `json:"total_tests"`
 	TotalPositiveTests int `json:"total_positive_tests"`
 	TestBacklog        int `json:"test_backlog"`
 	TestCapacity       int `json:"test_capacity"`
+
+	// cases are yielded by space surveillance processes, but attributed
+	// to the agent's home jurisdiction rather than that of the space
+	// that carried out the test. Sometimes tests are carried out in
+	// jurisdictions other than the patient's home jurisdiction
+	NewCases   int `json:"new_cases"`
+	TotalCases int `json:"total_cases"`
 }
 
 func NewMetricsTx(conn *amqp091.Connection, api_id, sim_id uuid.UUID) *MetricsTx {
@@ -59,7 +66,7 @@ func NewMetricsTx(conn *amqp091.Connection, api_id, sim_id uuid.UUID) *MetricsTx
 }
 
 func (tx *MetricsTx) NewEventSubscriber() func(event *logger.Event) {
-	juristiction_metrics := make(JuristictionMetrics)
+	jurisdiction_metrics := make(JuristictionMetrics)
 
 	day := 0
 
@@ -72,21 +79,24 @@ func (tx *MetricsTx) NewEventSubscriber() func(event *logger.Event) {
 				}
 
 				day += 1
-				for _, metrics := range juristiction_metrics {
+				for _, metrics := range jurisdiction_metrics {
 					metrics.Day = day
 				}
 
-				tx.send(juristiction_metrics)
-				// juristiction_metrics.print(payload.Time.Format("02-01-2006"))
-				juristiction_metrics.reset()
+				tx.send(jurisdiction_metrics)
+				jurisdiction_metrics.reset()
 			}
 		case model.AgentStateUpdate:
 			if payload, ok := event.Payload.(model.AgentStateUpdatePayload); ok {
-				juristiction_metrics.applyAgentStateUpdate(payload.Jurisdiction(), &payload)
+				jurisdiction_metrics.applyAgentStateUpdate(payload.Jurisdiction(), &payload)
+			}
+		case model.CaseDetected:
+			if payload, ok := event.Payload.(model.CaseDetectedPayload); ok {
+				jurisdiction_metrics.applyCaseDetected(payload.Jurisdiction())
 			}
 		case model.SpaceTestingUpdate:
 			if payload, ok := event.Payload.(model.SpaceTestingUpdatePayload); ok {
-				juristiction_metrics.applySpaceTestingUpdate(payload.Jurisdiction(), &payload)
+				jurisdiction_metrics.applySpaceTestingUpdate(payload.Jurisdiction(), &payload)
 			}
 		default:
 			// ignore other types of events
@@ -98,14 +108,14 @@ func (tx *MetricsTx) Close() {
 	tx.ch.Close()
 }
 
-func (juristiction_metrics JuristictionMetrics) applySpaceTestingUpdate(jur *model.Jurisdiction, payload *model.SpaceTestingUpdatePayload) {
-	jur_id := jur.Id()
+func (jurisdiction_metrics JuristictionMetrics) applySpaceTestingUpdate(jur *model.Jurisdiction, payload *model.SpaceTestingUpdatePayload) {
+	jur_id := jur.Id
 
-	if _, ok := juristiction_metrics[jur_id]; !ok {
-		juristiction_metrics[jur_id] = &Metrics{jurisdiction: jur}
+	if _, ok := jurisdiction_metrics[jur_id]; !ok {
+		jurisdiction_metrics[jur_id] = &Metrics{jurisdiction: jur}
 	}
 
-	metrics := juristiction_metrics[jur_id]
+	metrics := jurisdiction_metrics[jur_id]
 
 	metrics.TotalTests += int(payload.Negatives) + int(payload.Positives)
 	metrics.TotalPositiveTests += int(payload.Positives)
@@ -115,18 +125,35 @@ func (juristiction_metrics JuristictionMetrics) applySpaceTestingUpdate(jur *mod
 	metrics.TestCapacity += int(payload.Capacity)
 
 	if parent := jur.Parent(); parent != nil {
-		juristiction_metrics.applySpaceTestingUpdate(parent, payload)
+		jurisdiction_metrics.applySpaceTestingUpdate(parent, payload)
 	}
 }
 
-func (juristiction_metrics JuristictionMetrics) applyAgentStateUpdate(jur *model.Jurisdiction, payload *model.AgentStateUpdatePayload) {
-	jur_id := jur.Id()
+func (jurisdiction_metrics JuristictionMetrics) applyCaseDetected(jur *model.Jurisdiction) {
+	jur_id := jur.Id
 
-	if _, ok := juristiction_metrics[jur_id]; !ok {
-		juristiction_metrics[jur_id] = &Metrics{jurisdiction: jur}
+	if _, ok := jurisdiction_metrics[jur_id]; !ok {
+		jurisdiction_metrics[jur_id] = &Metrics{jurisdiction: jur}
 	}
 
-	metrics := juristiction_metrics[jur_id]
+	metrics := jurisdiction_metrics[jur_id]
+
+	metrics.NewCases += 1
+	metrics.TotalCases += 1
+
+	if parent := jur.Parent(); parent != nil {
+		jurisdiction_metrics.applyCaseDetected(parent)
+	}
+}
+
+func (jurisdiction_metrics JuristictionMetrics) applyAgentStateUpdate(jur *model.Jurisdiction, payload *model.AgentStateUpdatePayload) {
+	jur_id := jur.Id
+
+	if _, ok := jurisdiction_metrics[jur_id]; !ok {
+		jurisdiction_metrics[jur_id] = &Metrics{jurisdiction: jur}
+	}
+
+	metrics := jurisdiction_metrics[jur_id]
 
 	switch payload.State {
 	case model.Infected:
@@ -167,20 +194,14 @@ func (juristiction_metrics JuristictionMetrics) applyAgentStateUpdate(jur *model
 	}
 
 	if parent := jur.Parent(); parent != nil {
-		juristiction_metrics.applyAgentStateUpdate(parent, payload)
+		jurisdiction_metrics.applyAgentStateUpdate(parent, payload)
 	}
 }
 
-func (juristiction_metrics JuristictionMetrics) reset() {
-	for _, metrics := range juristiction_metrics {
+func (jurisdiction_metrics JuristictionMetrics) reset() {
+	for _, metrics := range jurisdiction_metrics {
 		metrics.reset()
 	}
-}
-
-func (juristiction_metrics JuristictionMetrics) print(date string) {
-	// fmt.Print("\033[H\033[2J")
-
-	juristiction_metrics["GLOBAL"].print(date)
 }
 
 func (metrics *Metrics) reset() {
@@ -193,36 +214,16 @@ func (metrics *Metrics) reset() {
 	metrics.NewPositiveTests = 0
 	metrics.TestBacklog = 0  // since the backlog is reported daily, reset it
 	metrics.TestCapacity = 0 // since the capacity is reported faily, reset it
+
+	metrics.NewCases = 0
 }
 
-func (metrics *Metrics) print(date string) {
-	fmt.Printf("Epidemic state for %s on %s\n", metrics.jurisdiction.Id(), date)
-	fmt.Printf("	New infections:				%d\n", metrics.NewInfections)
-	fmt.Printf("	New hospitalizations:			%d\n", metrics.NewHospitalizations)
-	fmt.Printf("	New recoveries:				%d\n", metrics.NewRecoveries)
-	fmt.Printf("	New deaths:				%d\n", metrics.NewDeaths)
-	fmt.Printf("	Infected population:			%d\n", metrics.InfectedPopulation)
-	fmt.Printf("	Infectious population:			%d\n", metrics.InfectiousPopulation)
-	fmt.Printf("	Hospitalized population:		%d\n", metrics.HospitalizedPopulation)
-	fmt.Printf("	Dead population:			%d\n", metrics.DeadPopulation)
-	fmt.Printf("	Immune population:			%d\n", metrics.ImmunePopulation)
-
-	// surveillance related metrics
-	fmt.Print("\n")
-	fmt.Printf("	New tests:				%d\n", metrics.NewTests)
-	fmt.Printf("	New detected cases:			%d\n", metrics.NewPositiveTests)
-	fmt.Printf("	Total Tests performed:			%d\n", metrics.TotalTests)
-	fmt.Printf("	Total Detected cases:				%d\n", metrics.TotalPositiveTests)
-	fmt.Printf("	Test backlog:				%d\n", metrics.TestBacklog)
-	fmt.Printf("	Test capacity:				%d\n", metrics.TestCapacity)
-}
-
-func (tx *MetricsTx) send(juristiction_metrics JuristictionMetrics) {
+func (tx *MetricsTx) send(jurisdiction_metrics JuristictionMetrics) {
 	routing_key := fmt.Sprintf("%s.%s", tx.api_id, tx.sim_id)
 
 	body, err := json.Marshal(Notification{
 		Type:    MetricsNotification,
-		Payload: juristiction_metrics,
+		Payload: jurisdiction_metrics,
 	})
 	failOnError(err, "failed to json serialize event")
 

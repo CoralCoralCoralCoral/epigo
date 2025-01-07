@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"log"
 	"time"
 
@@ -92,14 +93,21 @@ func (sim *Simulation) initialize() {
 	// start broadcasting logged events to listeners
 	go sim.logger.Broadcast()
 
-	sim.generate_entities()
+	sim.generateEntities()
+
+	var jurisdictions []Jurisdiction
+	jurisdictionsBytes, _ := json.Marshal(sim.jurisdictions)
+	json.Unmarshal(jurisdictionsBytes, &jurisdictions)
 
 	sim.logger.Log(logger.Event{
 		Type: SimulationInitialized,
+		Payload: SimulationInitializedPayload{
+			Jurisdictions: jurisdictions,
+		},
 	})
 }
 
-func (sim *Simulation) generate_entities() {
+func (sim *Simulation) generateEntities() {
 	entities := sim.entity_generator.Generate(&sim.config)
 
 	sim.agents = entities.agents
@@ -181,7 +189,7 @@ func (sim *Simulation) time() time.Time {
 
 func (sim *Simulation) applyPolicyUpdate(payload ApplyPolicyUpdatePayload) {
 	for _, jur := range sim.jurisdictions {
-		if jur.id == payload.JurisdictionId {
+		if jur.Id == payload.JurisdictionId {
 			jur.applyPolicyUpdate(sim, &payload)
 			return
 		}
