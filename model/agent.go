@@ -154,6 +154,8 @@ func (agent *Agent) updateLocation(sim *Simulation) {
 			sampleNormal(45*60*1000, 15*60*1000),
 		)
 
+		agent.has_self_reported = true
+
 		return
 	}
 

@@ -16,6 +16,7 @@ const SpaceOccupancyUpdate logger.EventType = "space_occupancy_update"
 const SpaceTestingUpdate logger.EventType = "space_testing_udpate"
 const PolicyUpdate logger.EventType = "policy_update"
 const BudgetUpdate logger.EventType = "budget_update"
+const CaseDetected logger.EventType = "case_detected"
 
 type SimulationInitializedPayload struct {
 	Jurisdictions []Jurisdiction `json:"jurisdictions"`
@@ -79,6 +80,18 @@ type PolicyUpdatePayload struct {
 
 type BudgetUpdatePayload struct {
 	CurrentBudget float64 `json:"current_budget"`
+}
+
+type CaseDetectedPayload struct {
+	Epoch          int64  `json:"epoch"`
+	SampleEpoch    int64  `json:"sample_epoch"`
+	JurisdictionId string `json:"jurisdiction_id"`
+
+	jurisdiction *Jurisdiction
+}
+
+func (payload *CaseDetectedPayload) Jurisdiction() *Jurisdiction {
+	return payload.jurisdiction
 }
 
 func (payload *AgentStateUpdatePayload) Jurisdiction() *Jurisdiction {
